@@ -1,0 +1,319 @@
+use everything_core::{
+    EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest,
+};
+use std::collections::{HashMap, HashSet};
+use std::sync::{
+    atomic::{AtomicU32, AtomicU64, Ordering},
+    Arc, Mutex,
+};
+use tauri::{path::BaseDirectory, Manager, State};
+use windows_shell::IconCache;
+
+#[derive(serde::Serialize)]
+struct TrashOutcome {
+    deleted: usize,
+    failures: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct TrashPreparation {
+    snapshot_id: u64,
+    count: usize,
+}
+
+struct AppState {
+    engine: Arc<Mutex<Option<EverythingEngine>>>,
+    engine_error: Option<String>,
+    latest_generation: Arc<AtomicU32>,
+    icons: Arc<IconCache>,
+    icon_slots: Arc<tokio::sync::Semaphore>,
+    trash_snapshots: Arc<Mutex<HashMap<u64, Vec<String>>>>,
+    trash_in_flight: Arc<Mutex<HashSet<u64>>>,
+    next_trash_snapshot: AtomicU64,
+}
+
+#[tauri::command]
+async fn engine_status(state: State<'_, AppState>) -> Result<EngineStatus, String> {
+    if let Some(error) = &state.engine_error {
+        return Ok(EngineStatus {
+            available: false,
+            message: error.clone(),
+            version: None,
+        });
+    }
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine
+            .lock()
+            .map_err(|_| "Verrou Everything empoisonné".to_string())?
+            .as_ref()
+            .map(|engine| engine.status())
+            .ok_or_else(|| "Moteur Everything indisponible".to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Invalide immédiatement les requêtes d'une génération précédente, avant même
+/// que le debounce du frontend n'émette la prochaine recherche.
+#[tauri::command]
+fn begin_search_generation(state: State<'_, AppState>, request_id: u32) {
+    state
+        .latest_generation
+        .fetch_max(request_id, Ordering::SeqCst);
+}
+
+#[tauri::command]
+async fn search_everything(
+    state: State<'_, AppState>,
+    request: QueryRequest,
+) -> Result<SearchPage, String> {
+    state
+        .latest_generation
+        .fetch_max(request.request_id, Ordering::SeqCst);
+
+    if request.request_id < state.latest_generation.load(Ordering::SeqCst) {
+        return Err("Requête de recherche obsolète".into());
+    }
+
+    let engine = state.engine.clone();
+    let latest_generation = state.latest_generation.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if request.request_id < latest_generation.load(Ordering::SeqCst) {
+            return Err("Requête de recherche obsolète".to_string());
+        }
+
+        let mut guard = engine
+            .lock()
+            .map_err(|_| "Verrou Everything empoisonné".to_string())?;
+
+        // Une requête plus récente peut avoir été reçue pendant l'attente du verrou.
+        if request.request_id < latest_generation.load(Ordering::SeqCst) {
+            return Err("Requête de recherche obsolète".to_string());
+        }
+
+        let engine = guard.as_mut().ok_or_else(|| {
+            "Everything SDK indisponible. Installez le SDK puis démarrez Everything.".to_string()
+        })?;
+        engine.query(request).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn get_file_icon(state: State<'_, AppState>, path: String) -> Result<Option<String>, String> {
+    let permit = state
+        .icon_slots
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| "Service d’icônes arrêté".to_string())?;
+    let icons = state.icons.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        icons.get(&path).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    result
+}
+
+#[tauri::command]
+async fn copy_text(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        windows_shell::copy_text(&text).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn open_path(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        windows_shell::open_path(&path).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn reveal_path(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        windows_shell::reveal_path(&path).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn rename_path(path: String, new_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        windows_shell::rename_path(&path, &new_name)
+            .map(|path| path.to_string_lossy().into_owned())
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn prepare_trash_selection(
+    state: State<'_, AppState>,
+    request: SelectionRequest,
+) -> Result<TrashPreparation, String> {
+    const MAX_TRASH_ITEMS: usize = 10_000;
+    if request.ranges.is_empty() {
+        return Err("Aucun élément sélectionné".into());
+    }
+    if request.ranges.len() > 16_384 {
+        return Err("Sélection invalide : trop de plages disjointes".into());
+    }
+    if request.request_id != state.latest_generation.load(Ordering::SeqCst) {
+        return Err("La recherche a changé depuis la sélection. Recommencez l’opération.".into());
+    }
+
+    let engine = state.engine.clone();
+    let latest_generation = state.latest_generation.clone();
+    let request_id = request.request_id;
+    let paths = tauri::async_runtime::spawn_blocking(move || {
+        let mut guard = engine
+            .lock()
+            .map_err(|_| "Verrou Everything empoisonné".to_string())?;
+        let engine = guard
+            .as_mut()
+            .ok_or_else(|| "Moteur Everything indisponible".to_string())?;
+        engine
+            .resolve_selection_cancellable(request, MAX_TRASH_ITEMS, || {
+                request_id != latest_generation.load(Ordering::SeqCst)
+            })
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+
+    if request_id != state.latest_generation.load(Ordering::SeqCst) {
+        return Err("La recherche a changé pendant la préparation de l’opération.".into());
+    }
+
+    let snapshot_id = state.next_trash_snapshot.fetch_add(1, Ordering::SeqCst);
+    let count = paths.len();
+    state
+        .trash_snapshots
+        .lock()
+        .map_err(|_| "Stockage des suppressions indisponible".to_string())?
+        .insert(snapshot_id, paths);
+
+    Ok(TrashPreparation { snapshot_id, count })
+}
+
+#[tauri::command]
+fn cancel_trash_snapshot(state: State<'_, AppState>, snapshot_id: u64) {
+    if let Ok(mut snapshots) = state.trash_snapshots.lock() {
+        snapshots.remove(&snapshot_id);
+    }
+}
+
+#[tauri::command]
+async fn execute_trash_snapshot(
+    state: State<'_, AppState>,
+    snapshot_id: u64,
+) -> Result<TrashOutcome, String> {
+    {
+        let mut in_flight = state
+            .trash_in_flight
+            .lock()
+            .map_err(|_| "État des suppressions indisponible".to_string())?;
+        if !in_flight.insert(snapshot_id) {
+            return Err("Cette suppression est déjà en cours".into());
+        }
+    }
+
+    let paths = match state.trash_snapshots.lock() {
+        Ok(mut snapshots) => match snapshots.remove(&snapshot_id) {
+            Some(paths) => paths,
+            None => {
+                if let Ok(mut in_flight) = state.trash_in_flight.lock() {
+                    in_flight.remove(&snapshot_id);
+                }
+                return Err("Cette confirmation a expiré ou a déjà été utilisée".into());
+            }
+        },
+        Err(_) => {
+            if let Ok(mut in_flight) = state.trash_in_flight.lock() {
+                in_flight.remove(&snapshot_id);
+            }
+            return Err("Stockage des suppressions indisponible".into());
+        }
+    };
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let report = windows_shell::trash_paths(&paths);
+        TrashOutcome {
+            deleted: report.deleted,
+            failures: report.failures,
+        }
+    })
+    .await
+    .map_err(|error| error.to_string());
+
+    if let Ok(mut in_flight) = state.trash_in_flight.lock() {
+        in_flight.remove(&snapshot_id);
+    }
+    result
+}
+
+fn initialize_engine<R: tauri::Runtime>(
+    app: &tauri::App<R>,
+) -> (Option<EverythingEngine>, Option<String>) {
+    let bundled_dll = app
+        .path()
+        .resolve("Everything64.dll", BaseDirectory::Resource)
+        .ok()
+        .filter(|path| path.is_file());
+
+    let result = bundled_dll
+        .as_deref()
+        .map(|path| EverythingEngine::from_dll_path(path))
+        .unwrap_or_else(EverythingEngine::new);
+
+    match result {
+        Ok(engine) => (Some(engine), None),
+        Err(error) => (None, Some(error.to_string())),
+    }
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .setup(|app| {
+            let (engine, engine_error) = initialize_engine(app);
+            app.manage(AppState {
+                engine: Arc::new(Mutex::new(engine)),
+                engine_error,
+                latest_generation: Arc::new(AtomicU32::new(0)),
+                icons: Arc::new(IconCache::new(512)),
+                icon_slots: Arc::new(tokio::sync::Semaphore::new(4)),
+                trash_snapshots: Arc::new(Mutex::new(HashMap::new())),
+                trash_in_flight: Arc::new(Mutex::new(HashSet::new())),
+                next_trash_snapshot: AtomicU64::new(1),
+            });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            engine_status,
+            begin_search_generation,
+            search_everything,
+            get_file_icon,
+            copy_text,
+            open_path,
+            reveal_path,
+            rename_path,
+            prepare_trash_selection,
+            execute_trash_snapshot,
+            cancel_trash_snapshot,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running Everything Modern");
+}

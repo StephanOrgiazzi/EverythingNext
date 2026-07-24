@@ -1,0 +1,12 @@
+[package]
+name = "everything-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[target.'cfg(windows)'.dependencies]
+libloading = "0.8"
