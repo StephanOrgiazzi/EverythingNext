@@ -1,5 +1,9 @@
 use everything_core::{EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest};
 use std::collections::{HashMap, HashSet};
+#[cfg(all(windows, not(debug_assertions)))]
+use std::os::windows::process::CommandExt;
+#[cfg(all(windows, not(debug_assertions)))]
+use std::process::Command;
 use std::sync::{
     atomic::{AtomicU32, AtomicU64, Ordering},
     Arc, Mutex,
@@ -12,6 +16,8 @@ use tauri::{
 };
 use windows_shell::IconCache;
 
+const AUTOSTART_ARG: &str = "--autostart";
+const AUTOSTART_VALUE_NAME: &str = "Everything Modern";
 const TRAY_OPEN_ID: &str = "open";
 const TRAY_QUIT_ID: &str = "quit";
 
@@ -289,6 +295,51 @@ fn initialize_engine<R: tauri::Runtime>(
     }
 }
 
+fn is_autostart_launch() -> bool {
+    std::env::args_os().any(|arg| arg == AUTOSTART_ARG)
+}
+
+#[cfg(all(windows, not(debug_assertions)))]
+fn register_windows_autostart() -> Result<(), String> {
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Impossible de localiser l’exécutable : {error}"))?;
+    let startup_command = format!("\"{}\" {AUTOSTART_ARG}", executable.display());
+    let status = Command::new("reg.exe")
+        .args([
+            "add",
+            RUN_KEY,
+            "/v",
+            AUTOSTART_VALUE_NAME,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &startup_command,
+            "/f",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|error| format!("Impossible d’enregistrer l’auto-démarrage : {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "reg.exe a échoué avec le code {}",
+            status
+                .code()
+                .map_or_else(|| "inconnu".to_string(), |code| code.to_string())
+        ))
+    }
+}
+
+#[cfg(any(not(windows), debug_assertions))]
+fn register_windows_autostart() -> Result<(), String> {
+    Ok(())
+}
+
 fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -302,6 +353,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            if let Err(error) = register_windows_autostart() {
+                eprintln!("Everything Modern autostart: {error}");
+            }
+
             let (engine, engine_error) = initialize_engine(app);
             app.manage(AppState {
                 engine: Arc::new(Mutex::new(engine)),
@@ -342,6 +397,11 @@ pub fn run() {
                 tray = tray.icon(icon);
             }
             tray.build(app)?;
+
+            if !is_autostart_launch() {
+                show_main_window(app.handle());
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
