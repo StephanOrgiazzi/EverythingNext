@@ -14,4 +14,4 @@ trash = "5"
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5.4.1"
-file-icon-provider = "1.0.0"
+file_icon_provider = "1.0.0"

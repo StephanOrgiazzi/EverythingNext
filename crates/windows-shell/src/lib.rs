@@ -205,9 +205,7 @@ fn unique_temporary_sibling(source: &Path) -> Result<PathBuf, ShellError> {
         .ok_or_else(|| ShellError::InvalidPath(source.to_string_lossy().into_owned()))?;
     let process = std::process::id();
     for attempt in 0..1_024_u32 {
-        let candidate = parent.join(format!(
-            ".everything-modern-rename-{process}-{attempt}.tmp"
-        ));
+        let candidate = parent.join(format!(".everything-modern-rename-{process}-{attempt}.tmp"));
         if !candidate.exists() {
             return Ok(candidate);
         }
@@ -237,7 +235,11 @@ fn validate_windows_name(name: &str) -> Result<(), ShellError> {
         return Err(ShellError::InvalidName(name.into()));
     }
     if name.chars().any(|character| {
-        character < '\u{20}' || matches!(character, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
+        character < '\u{20}'
+            || matches!(
+                character,
+                '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
+            )
     }) {
         return Err(ShellError::InvalidName(name.into()));
     }
@@ -328,7 +330,12 @@ mod tests {
 
     #[test]
     fn accepts_normal_windows_names() {
-        for name in ["rapport final.pdf", "photo_été.png", "archive.tar.gz", "README"] {
+        for name in [
+            "rapport final.pdf",
+            "photo_été.png",
+            "archive.tar.gz",
+            "README",
+        ] {
             assert!(validate_windows_name(name).is_ok(), "{name}");
         }
     }
@@ -336,9 +343,23 @@ mod tests {
     #[test]
     fn rejects_invalid_and_reserved_windows_names() {
         for name in [
-            "", " fichier.txt", "fichier.txt ", "fichier.", "a/b", "a\\b", "a:b",
-            "CON", "con.txt", "NUL.md", "COM1.log", "COM¹.txt", "LPT9", "LPT².log",
-            "CONIN$", "CONOUT$.txt", "CLOCK$",
+            "",
+            " fichier.txt",
+            "fichier.txt ",
+            "fichier.",
+            "a/b",
+            "a\\b",
+            "a:b",
+            "CON",
+            "con.txt",
+            "NUL.md",
+            "COM1.log",
+            "COM¹.txt",
+            "LPT9",
+            "LPT².log",
+            "CONIN$",
+            "CONOUT$.txt",
+            "CLOCK$",
         ] {
             assert!(validate_windows_name(name).is_err(), "{name}");
         }
@@ -395,9 +416,12 @@ mod tests {
         let source = directory.join("document.txt");
         fs::write(&source, b"test").expect("create source");
 
-        let renamed = rename_path(&source.to_string_lossy(), "DOCUMENT.txt")
-            .expect("case-only rename");
-        assert_eq!(renamed.file_name().and_then(|name| name.to_str()), Some("DOCUMENT.txt"));
+        let renamed =
+            rename_path(&source.to_string_lossy(), "DOCUMENT.txt").expect("case-only rename");
+        assert_eq!(
+            renamed.file_name().and_then(|name| name.to_str()),
+            Some("DOCUMENT.txt")
+        );
         assert!(renamed.exists());
 
         fs::remove_dir_all(&directory).expect("cleanup");
@@ -417,5 +441,4 @@ mod tests {
             icon_cache_key(r"D:\Other\two.txt")
         );
     }
-
 }

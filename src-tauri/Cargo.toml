@@ -15,7 +15,7 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 everything-core = { path = "../crates/everything-core" }
 serde = { version = "1", features = ["derive"] }
-tauri = { version = "2.11.5", features = [] }
+tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-window-state = "2.4.1"
 tokio = { version = "1", features = ["sync"] }
 windows-shell = { path = "../crates/windows-shell" }

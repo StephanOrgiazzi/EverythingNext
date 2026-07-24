@@ -1,13 +1,19 @@
-use everything_core::{
-    EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest,
-};
+use everything_core::{EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest};
 use std::collections::{HashMap, HashSet};
 use std::sync::{
     atomic::{AtomicU32, AtomicU64, Ordering},
     Arc, Mutex,
 };
-use tauri::{path::BaseDirectory, Manager, State};
+use tauri::{
+    menu::{Menu, MenuItem},
+    path::BaseDirectory,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, Runtime, State, WindowEvent,
+};
 use windows_shell::IconCache;
+
+const TRAY_OPEN_ID: &str = "open";
+const TRAY_QUIT_ID: &str = "quit";
 
 #[derive(serde::Serialize)]
 struct TrashOutcome {
@@ -283,6 +289,14 @@ fn initialize_engine<R: tauri::Runtime>(
     }
 }
 
+fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -299,7 +313,42 @@ pub fn run() {
                 trash_in_flight: Arc::new(Mutex::new(HashSet::new())),
                 next_trash_snapshot: AtomicU64::new(1),
             });
+
+            let open = MenuItem::with_id(app, TRAY_OPEN_ID, "Ouvrir", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, TRAY_QUIT_ID, "Quitter", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let mut tray = TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .tooltip("Everything Modern")
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    TRAY_OPEN_ID => show_main_window(app),
+                    TRAY_QUIT_ID => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if matches!(
+                        event,
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
+                        show_main_window(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray = tray.icon(icon);
+            }
+            tray.build(app)?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             engine_status,

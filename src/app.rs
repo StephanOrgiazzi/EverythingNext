@@ -1,13 +1,15 @@
 use crate::api;
-use everything_core::{IndexSelection, QueryRequest, SearchResult, SortColumn, SortDirection, SortSpec};
+use everything_core::{
+    IndexSelection, QueryRequest, SearchResult, SortColumn, SortDirection, SortSpec,
+};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::JsCast;
-use web_sys::{Element, HtmlDivElement, HtmlInputElement, KeyboardEvent, MouseEvent};
+use web_sys::{Element, HtmlDivElement, HtmlInputElement, KeyboardEvent, MouseEvent, PointerEvent};
 
-const ROW_HEIGHT: f64 = 36.0;
+const ROW_HEIGHT: f64 = 34.0;
 const PAGE_SIZE: u32 = 256;
 const PAGE_CACHE_LIMIT: usize = 8;
 const OVERSCAN: u32 = 8;
@@ -31,6 +33,31 @@ struct TrashPending {
     snapshot_id: u64,
 }
 
+#[derive(Clone, Copy)]
+struct ColumnWidths {
+    name: f64,
+    path: f64,
+    size: f64,
+    date: f64,
+}
+
+#[derive(Clone, Copy)]
+enum ColumnBoundary {
+    NamePath,
+    PathSize,
+    SizeDate,
+}
+
+#[derive(Clone, Copy)]
+struct ColumnResize {
+    boundary: ColumnBoundary,
+    pointer_id: i32,
+    start_x: f64,
+    start_left: f64,
+    start_right: f64,
+    total_width: f64,
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     let query = RwSignal::new(String::new());
@@ -41,6 +68,7 @@ pub fn App() -> impl IntoView {
     let total = RwSignal::new(0_u32);
     let scroll_top = RwSignal::new(0_f64);
     let viewport_height = RwSignal::new(640_f64);
+    let results_grid_width = RwSignal::new(0_f64);
     let sort = RwSignal::new(SortSpec::default());
     let loading = RwSignal::new(false);
     let render_latency_ms = RwSignal::new(None::<f64>);
@@ -57,8 +85,11 @@ pub fn App() -> impl IntoView {
     let trash_preparing = RwSignal::new(false);
     let trash_in_flight = RwSignal::new(false);
     let context_menu = RwSignal::new(None::<ContextMenuState>);
+    let column_widths = RwSignal::new(None::<ColumnWidths>);
+    let column_resize = RwSignal::new(None::<ColumnResize>);
     let search_ref = NodeRef::<leptos::html::Input>::new();
     let list_ref = NodeRef::<leptos::html::Div>::new();
+    let column_header_ref = NodeRef::<leptos::html::Div>::new();
 
     spawn_local(async move {
         loop {
@@ -79,6 +110,15 @@ pub fn App() -> impl IntoView {
                 if (height - viewport_height.get_untracked()).abs() > 0.5 {
                     viewport_height.set(height);
                 }
+                let width = list
+                    .query_selector(".virtual-canvas")
+                    .ok()
+                    .flatten()
+                    .map(|canvas| canvas.get_bounding_client_rect().width())
+                    .unwrap_or_else(|| list.client_width() as f64);
+                if (width - results_grid_width.get_untracked()).abs() > 0.5 {
+                    results_grid_width.set(width);
+                }
             }
             TimeoutFuture::new(120).await;
         }
@@ -90,7 +130,9 @@ pub fn App() -> impl IntoView {
         let _refresh = refresh_token.get();
         let next_generation = generation.get_untracked().saturating_add(1);
         generation.set(next_generation);
-        spawn_local(async move { api::begin_generation(next_generation).await; });
+        spawn_local(async move {
+            api::begin_generation(next_generation).await;
+        });
         pages.set(BTreeMap::new());
         loading_pages.set(HashSet::new());
         total.set(0);
@@ -99,7 +141,9 @@ pub fn App() -> impl IntoView {
         focused_index.set(None);
         rename_target.set(None);
         if let Some(pending) = trash_pending.get_untracked() {
-            spawn_local(async move { api::cancel_trash(pending.snapshot_id).await; });
+            spawn_local(async move {
+                api::cancel_trash(pending.snapshot_id).await;
+            });
         }
         trash_pending.set(None);
         search_error.set(None);
@@ -322,7 +366,15 @@ pub fn App() -> impl IntoView {
             }
             "Delete" => {
                 event.prevent_default();
-                begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error);
+                begin_trash(
+                    selected,
+                    query,
+                    sort,
+                    generation,
+                    trash_pending,
+                    trash_preparing,
+                    error,
+                );
             }
             "F2" => {
                 event.prevent_default();
@@ -365,15 +417,19 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <main class="app-shell" tabindex="0" on:keydown=on_keydown on:click=move |_| context_menu.set(None)>
+        <main
+            class="app-shell"
+            tabindex="0"
+            on:keydown=on_keydown
+            on:click=move |_| context_menu.set(None)
+            on:pointermove=move |event| update_column_resize(event, column_widths, column_resize)
+            on:pointerup=move |event| finish_column_resize(event, column_resize)
+            on:pointercancel=move |event| finish_column_resize(event, column_resize)
+        >
             <header class="titlebar" data-tauri-drag-region on:dblclick=move |_| api::toggle_maximize_window()>
                 <div class="app-mark" aria-hidden="true">"E"</div>
                 <div class="app-title" data-tauri-drag-region>"Everything Modern"</div>
                 <div class="titlebar-spacer" data-tauri-drag-region></div>
-                <div class="engine-pill" class:offline=move || !engine_available.get()>
-                    <span class="status-dot"></span>
-                    {move || if engine_available.get() { "Everything connecté" } else { "Mode déconnecté" }}
-                </div>
                 <div class="window-controls" on:dblclick=move |event| event.stop_propagation()>
                     <button class="window-control" title="Réduire" aria-label="Réduire" on:click=move |event| { event.stop_propagation(); api::minimize_window(); }>{icon_minimize()}</button>
                     <button class="window-control" title="Agrandir ou restaurer" aria-label="Agrandir ou restaurer" on:click=move |event| { event.stop_propagation(); api::toggle_maximize_window(); }>{icon_maximize()}</button>
@@ -381,56 +437,69 @@ pub fn App() -> impl IntoView {
                 </div>
             </header>
 
-            <section class="command-bar">
-                <button class="icon-button" title="Effacer la recherche" aria-label="Effacer la recherche" on:click=move |_| query.set(String::new())>{icon_arrow_left()}</button>
-                <button class="icon-button" title="Actualiser" aria-label="Actualiser" on:click=move |_| refresh_results(refresh_token)>{icon_refresh()}</button>
+            <div class="search-toolbar" role="search">
                 <div class="search-box">
                     {icon_search()}
                     <input
                         node_ref=search_ref
                         type="search"
-                        placeholder="Rechercher avec la syntaxe Everything…"
+                        placeholder="Rechercher dans Everything"
                         prop:value=move || query.get()
                         on:input=on_search_input
                         autofocus
                     />
                     <kbd>"Ctrl L"</kbd>
                 </div>
-                <button class="icon-button" title="Ouvrir" aria-label="Ouvrir" on:click=move |_| {
+            </div>
+
+            <section class="command-bar" aria-label="Commandes">
+                <button class="command-button" title="Ouvrir" on:click=move |_| {
                     if let Some(item) = focused_item(focused_index, pages) {
                         open_item(item.full_path, error);
                     }
-                }>{icon_open()}</button>
-                <button class="icon-button" title="Afficher dans l’Explorateur" aria-label="Afficher dans l’Explorateur" on:click=move |_| {
+                }>{icon_open()}<span>"Ouvrir"</span></button>
+                <button class="command-button" title="Afficher dans l’Explorateur" on:click=move |_| {
                     if let Some(item) = focused_item(focused_index, pages) {
                         reveal_item(item.full_path, error);
                     }
-                }>{icon_folder_open()}</button>
-                <button class="icon-button danger-hover" title="Mettre à la Corbeille" aria-label="Mettre à la Corbeille" on:click=move |_| begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error)>{icon_trash()}</button>
+                }>{icon_folder_open()}<span>"Afficher dans l’Explorateur"</span></button>
+                <span class="command-separator"></span>
+                <button class="command-button danger-hover" title="Mettre à la Corbeille" on:click=move |_| begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error)>{icon_trash()}<span>"Supprimer"</span></button>
             </section>
 
             <div class="workspace">
                 <aside class="sidebar">
-                    <div class="sidebar-section-label">"Recherche"</div>
                     <SidebarItem label="Tous les fichiers" icon=icon_home() active=move || query.get() == "*" on_click=move || query.set("*".into()) />
                     <SidebarItem label="Modifiés aujourd’hui" icon=icon_clock() active=move || query.get() == "dm:today" on_click=move || query.set("dm:today".into()) />
+                    <div class="sidebar-separator"></div>
                     <div class="sidebar-section-label">"Types"</div>
                     <SidebarItem label="Documents" icon=icon_document() active=move || query.get() == "ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" on_click=move || query.set("ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt".into()) />
                     <SidebarItem label="Images" icon=icon_image() active=move || query.get() == "ext:png;jpg;jpeg;webp;gif;svg;avif" on_click=move || query.set("ext:png;jpg;jpeg;webp;gif;svg;avif".into()) />
                     <SidebarItem label="Vidéos" icon=icon_video() active=move || query.get() == "ext:mp4;mkv;avi;mov;webm" on_click=move || query.set("ext:mp4;mkv;avi;mov;webm".into()) />
                     <SidebarItem label="Archives" icon=icon_archive() active=move || query.get() == "ext:zip;7z;rar;tar;gz" on_click=move || query.set("ext:zip;7z;rar;tar;gz".into()) />
-                    <div class="sidebar-footer">
-                        <span>{icon_info()}</span>
-                        <span>{move || engine_message.get()}</span>
-                    </div>
                 </aside>
 
-                <section class="results-panel">
-                    <div class="column-header">
-                        <SortHeader label="Nom" column=SortColumn::Name sort=sort class_name="col-name" />
-                        <SortHeader label="Chemin" column=SortColumn::Path sort=sort class_name="col-path" />
-                        <SortHeader label="Taille" column=SortColumn::Size sort=sort class_name="col-size" />
-                        <SortHeader label="Modifié le" column=SortColumn::Modified sort=sort class_name="col-date" />
+                <section
+                    class="results-panel"
+                    class:resizing-columns=move || column_resize.get().is_some()
+                    style=move || column_layout_style(column_widths.get(), results_grid_width.get())
+                >
+                    <div class="column-header" node_ref=column_header_ref>
+                        <div class="column-heading col-name">
+                            <SortHeader label="Nom" column=SortColumn::Name sort=sort />
+                            <ColumnResizer boundary=ColumnBoundary::NamePath header_ref=column_header_ref widths=column_widths resizing=column_resize />
+                        </div>
+                        <div class="column-heading col-path">
+                            <SortHeader label="Chemin" column=SortColumn::Path sort=sort />
+                            <ColumnResizer boundary=ColumnBoundary::PathSize header_ref=column_header_ref widths=column_widths resizing=column_resize />
+                        </div>
+                        <div class="column-heading col-size">
+                            <SortHeader label="Taille" column=SortColumn::Size sort=sort />
+                            <ColumnResizer boundary=ColumnBoundary::SizeDate header_ref=column_header_ref widths=column_widths resizing=column_resize />
+                        </div>
+                        <div class="column-heading col-date">
+                            <SortHeader label="Modifié le" column=SortColumn::Modified sort=sort />
+                        </div>
                     </div>
 
                     <div
@@ -557,12 +626,12 @@ pub fn App() -> impl IntoView {
                         <span>{move || format_result_count(total.get())}</span>
                         <span class="status-separator"></span>
                         <span>{move || format!("{} sélectionné(s)", selected.with(IndexSelection::count))}</span>
+                        <Show when=move || !engine_available.get()>
+                            <span class="status-separator"></span>
+                            <span class="connection-warning" title=move || engine_message.get()>"Everything indisponible"</span>
+                        </Show>
                         <span class="statusbar-spacer"></span>
                         <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Recherche…"</span></Show>
-                        <Show when=move || render_latency_ms.get().is_some()>
-                            <span title="Délai entre la réponse IPC et la prochaine passe de rendu">{move || format!("UI {:.0} ms", render_latency_ms.get().unwrap_or_default())}</span>
-                        </Show>
-                        <span>"Lignes virtualisées"</span>
                     </footer>
                 </section>
             </div>
@@ -735,18 +804,14 @@ fn request_page(
             Err(message) => search_error.set(Some(message)),
         }
         loading.set(loading_pages.with_untracked(|set| {
-            set.iter().any(|(request_id, _)| *request_id == request_generation)
+            set.iter()
+                .any(|(request_id, _)| *request_id == request_generation)
         }));
     });
 }
 
 #[component]
-fn SidebarItem<F, A>(
-    label: &'static str,
-    icon: AnyView,
-    active: F,
-    on_click: A,
-) -> impl IntoView
+fn SidebarItem<F, A>(label: &'static str, icon: AnyView, active: F, on_click: A) -> impl IntoView
 where
     F: Fn() -> bool + Send + Sync + 'static,
     A: Fn() + Send + Sync + 'static,
@@ -759,16 +824,11 @@ where
 }
 
 #[component]
-fn SortHeader(
-    label: &'static str,
-    column: SortColumn,
-    sort: RwSignal<SortSpec>,
-    class_name: &'static str,
-) -> impl IntoView {
+fn SortHeader(label: &'static str, column: SortColumn, sort: RwSignal<SortSpec>) -> impl IntoView {
     let column_for_click = column;
     let column_for_active = column;
     view! {
-        <button class=format!("column-button {class_name}") on:click=move |_| {
+        <button class="column-button" on:click=move |_| {
             sort.update(|current| {
                 if current.column == column_for_click {
                     current.direction = current.direction.toggle();
@@ -787,12 +847,32 @@ fn SortHeader(
 }
 
 #[component]
+fn ColumnResizer(
+    boundary: ColumnBoundary,
+    header_ref: NodeRef<leptos::html::Div>,
+    widths: RwSignal<Option<ColumnWidths>>,
+    resizing: RwSignal<Option<ColumnResize>>,
+) -> impl IntoView {
+    view! {
+        <span
+            class="column-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            on:pointerdown=move |event| begin_column_resize(event, boundary, header_ref, widths, resizing)
+            on:click=move |event| event.stop_propagation()
+        ></span>
+    }
+}
+
+#[component]
 fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
     let source = RwSignal::new(None::<String>);
     let path_for_effect = path.clone();
     Effect::new(move |_| {
         let path = path_for_effect.clone();
-        spawn_local(async move { source.set(api::icon(&path).await); });
+        spawn_local(async move {
+            source.set(api::icon(&path).await);
+        });
     });
 
     view! {
@@ -827,17 +907,168 @@ where
     }
 }
 
+fn begin_column_resize(
+    event: PointerEvent,
+    boundary: ColumnBoundary,
+    header_ref: NodeRef<leptos::html::Div>,
+    widths: RwSignal<Option<ColumnWidths>>,
+    resizing: RwSignal<Option<ColumnResize>>,
+) {
+    event.prevent_default();
+    event.stop_propagation();
+
+    let Some(header) = header_ref.get() else {
+        return;
+    };
+    let Some(measured) = measure_column_widths(&header) else {
+        return;
+    };
+    let total_width = measured.name + measured.path + measured.size + measured.date;
+    if total_width <= 0.0 {
+        return;
+    }
+
+    widths.set(Some(ColumnWidths {
+        name: measured.name / total_width * 100.0,
+        path: measured.path / total_width * 100.0,
+        size: measured.size / total_width * 100.0,
+        date: measured.date / total_width * 100.0,
+    }));
+
+    let (start_left, start_right) = match boundary {
+        ColumnBoundary::NamePath => (measured.name, measured.path),
+        ColumnBoundary::PathSize => (measured.path, measured.size),
+        ColumnBoundary::SizeDate => (measured.size, measured.date),
+    };
+    resizing.set(Some(ColumnResize {
+        boundary,
+        pointer_id: event.pointer_id(),
+        start_x: event.client_x() as f64,
+        start_left,
+        start_right,
+        total_width,
+    }));
+
+    if let Some(element) = event
+        .current_target()
+        .and_then(|target| target.dyn_into::<Element>().ok())
+    {
+        let _ = element.set_pointer_capture(event.pointer_id());
+    }
+}
+
+fn update_column_resize(
+    event: PointerEvent,
+    widths: RwSignal<Option<ColumnWidths>>,
+    resizing: RwSignal<Option<ColumnResize>>,
+) {
+    let Some(active) = resizing.get_untracked() else {
+        return;
+    };
+    if active.pointer_id != event.pointer_id() {
+        return;
+    }
+    event.prevent_default();
+
+    let (minimum_left, minimum_right) = match active.boundary {
+        ColumnBoundary::NamePath => (180.0, 180.0),
+        ColumnBoundary::PathSize => (180.0, 76.0),
+        ColumnBoundary::SizeDate => (76.0, 130.0),
+    };
+    let pair_width = active.start_left + active.start_right;
+    if pair_width <= minimum_left + minimum_right {
+        return;
+    }
+
+    let delta = event.client_x() as f64 - active.start_x;
+    let next_left = (active.start_left + delta).clamp(minimum_left, pair_width - minimum_right);
+    let next_right = pair_width - next_left;
+    let left_percent = next_left / active.total_width * 100.0;
+    let right_percent = next_right / active.total_width * 100.0;
+
+    widths.update(|current| {
+        let Some(current) = current else {
+            return;
+        };
+        match active.boundary {
+            ColumnBoundary::NamePath => {
+                current.name = left_percent;
+                current.path = right_percent;
+            }
+            ColumnBoundary::PathSize => {
+                current.path = left_percent;
+                current.size = right_percent;
+            }
+            ColumnBoundary::SizeDate => {
+                current.size = left_percent;
+                current.date = right_percent;
+            }
+        }
+    });
+}
+
+fn finish_column_resize(event: PointerEvent, resizing: RwSignal<Option<ColumnResize>>) {
+    let Some(active) = resizing.get_untracked() else {
+        return;
+    };
+    if active.pointer_id != event.pointer_id() {
+        return;
+    }
+    event.prevent_default();
+    event.stop_propagation();
+    resizing.set(None);
+}
+
+fn measure_column_widths(header: &HtmlDivElement) -> Option<ColumnWidths> {
+    Some(ColumnWidths {
+        name: measure_column(header, ".column-heading.col-name")?,
+        path: measure_column(header, ".column-heading.col-path")?,
+        size: measure_column(header, ".column-heading.col-size")?,
+        date: measure_column(header, ".column-heading.col-date")?,
+    })
+}
+
+fn measure_column(header: &HtmlDivElement, selector: &str) -> Option<f64> {
+    header
+        .query_selector(selector)
+        .ok()
+        .flatten()
+        .map(|element| element.get_bounding_client_rect().width())
+}
+
+fn column_layout_style(widths: Option<ColumnWidths>, grid_width: f64) -> String {
+    let mut style = if grid_width > 0.0 {
+        format!("--grid-width:{grid_width:.2}px")
+    } else {
+        String::new()
+    };
+    if let Some(widths) = widths {
+        style.push_str(&format!(
+            ";--col-name:{:.4}%;--col-path:{:.4}%;--col-size:{:.4}%;--col-date:{:.4}%",
+            widths.name, widths.path, widths.size, widths.date
+        ));
+    }
+    style
+}
+
 fn item_at(index: u32, pages: RwSignal<BTreeMap<u32, Vec<SearchResult>>>) -> Option<SearchResult> {
     let page = index / PAGE_SIZE;
     let within = (index % PAGE_SIZE) as usize;
-    pages.with(|cache| cache.get(&page).and_then(|items| items.get(within)).cloned())
+    pages.with(|cache| {
+        cache
+            .get(&page)
+            .and_then(|items| items.get(within))
+            .cloned()
+    })
 }
 
 fn focused_item(
     focused_index: RwSignal<Option<u32>>,
     pages: RwSignal<BTreeMap<u32, Vec<SearchResult>>>,
 ) -> Option<SearchResult> {
-    focused_index.get_untracked().and_then(|index| item_at(index, pages))
+    focused_index
+        .get_untracked()
+        .and_then(|index| item_at(index, pages))
 }
 
 fn select_row(
@@ -997,9 +1228,12 @@ fn validate_rename_input(name: &str) -> Result<(), String> {
         return Err("Le nom ne peut pas être vide ni commencer ou finir par un espace.".into());
     }
     if name.ends_with('.')
-        || name
-            .chars()
-            .any(|character| matches!(character, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
+        || name.chars().any(|character| {
+            matches!(
+                character,
+                '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
+            )
+        })
     {
         return Err("Ce nom contient un caractère interdit sous Windows.".into());
     }
@@ -1071,7 +1305,10 @@ fn begin_trash(
     error: RwSignal<Option<String>>,
 ) {
     let selection = selected.get_untracked();
-    if selection.is_empty() || trash_preparing.get_untracked() || trash_pending.get_untracked().is_some() {
+    if selection.is_empty()
+        || trash_preparing.get_untracked()
+        || trash_pending.get_untracked().is_some()
+    {
         return;
     }
     trash_preparing.set(true);
@@ -1098,7 +1335,9 @@ fn cancel_trash(trash_pending: RwSignal<Option<TrashPending>>) {
         return;
     };
     trash_pending.set(None);
-    spawn_local(async move { api::cancel_trash(pending.snapshot_id).await; });
+    spawn_local(async move {
+        api::cancel_trash(pending.snapshot_id).await;
+    });
 }
 
 fn submit_trash(
@@ -1163,17 +1402,30 @@ fn copy_text(text: String, error: RwSignal<Option<String>>) {
 }
 
 fn format_size(size: Option<u64>, is_dir: bool) -> String {
-    if is_dir { return String::new(); }
-    let Some(bytes) = size else { return "—".into(); };
+    if is_dir {
+        return String::new();
+    }
+    let Some(bytes) = size else {
+        return "—".into();
+    };
     const UNITS: [&str; 5] = ["o", "Ko", "Mo", "Go", "To"];
     let mut value = bytes as f64;
     let mut unit = 0;
-    while value >= 1024.0 && unit < UNITS.len() - 1 { value /= 1024.0; unit += 1; }
-    if unit == 0 { format!("{} {}", bytes, UNITS[unit]) } else { format!("{value:.1} {}", UNITS[unit]) }
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{} {}", bytes, UNITS[unit])
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
 }
 
 fn format_date(timestamp: Option<i64>) -> String {
-    let Some(timestamp) = timestamp else { return "—".into(); };
+    let Some(timestamp) = timestamp else {
+        return "—".into();
+    };
     let date = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(timestamp as f64 * 1000.0));
     format!(
         "{:02}/{:02}/{} {:02}:{:02}",
@@ -1189,7 +1441,9 @@ fn format_result_count(total: u32) -> String {
     let text = total.to_string();
     let mut output = String::new();
     for (index, ch) in text.chars().rev().enumerate() {
-        if index > 0 && index % 3 == 0 { output.push(' '); }
+        if index > 0 && index % 3 == 0 {
+            output.push(' ');
+        }
         output.push(ch);
     }
     format!("{} résultat(s)", output.chars().rev().collect::<String>())
@@ -1198,26 +1452,63 @@ fn format_result_count(total: u32) -> String {
 fn svg(path: &'static str) -> AnyView {
     view! { <svg viewBox="0 0 24 24" aria-hidden="true"><path d=path></path></svg> }.into_any()
 }
-fn icon_search() -> AnyView { svg("M10.8 4.2a6.6 6.6 0 1 0 4.08 11.79l4.32 4.32 1.41-1.42-4.32-4.31A6.6 6.6 0 0 0 10.8 4.2Zm0 2a4.6 4.6 0 1 1 0 9.2 4.6 4.6 0 0 1 0-9.2Z") }
-fn icon_arrow_left() -> AnyView { svg("m14.7 5.3-1.4-1.4L5.2 12l8.1 8.1 1.4-1.4L9 13h10v-2H9l5.7-5.7Z") }
-fn icon_refresh() -> AnyView { svg("M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3l-3.3 3.3Z") }
-fn icon_open() -> AnyView { svg("M5 4h6v2H6v12h12v-5h2v7H4V4h1Zm8-1h8v8h-2V6.41l-8.3 8.3-1.4-1.42L17.58 5H13V3Z") }
-fn icon_folder_open() -> AnyView { svg("M3 5h7l2 2h9v3h-2V9h-7.8l-2-2H5v10.2L7.2 11H22l-3.4 9H3V5Zm4.2 8L5.4 18h11.8l1.9-5H7.2Z") }
-fn icon_trash() -> AnyView { svg("M8 4V2h8v2h5v2H3V4h5Zm-2 4h12l-1 14H7L6 8Zm3 2 .6 10h1L10 10H9Zm5 0-.6 10h1L15 10h-1Z") }
-fn icon_home() -> AnyView { svg("m12 3 9 8h-3v10h-5v-6h-2v6H6V11H3l9-8Zm0 2.7L7.5 9.7V19H9v-6h6v6h1.5V9.7L12 5.7Z") }
-fn icon_clock() -> AnyView { svg("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 3v6l5 3 1-1.7-4-2.3V7h-2Z") }
-fn icon_document() -> AnyView { svg("M6 2h8l5 5v15H6V2Zm2 2v16h9V8h-4V4H8Zm7 .4V6h1.6L15 4.4ZM10 11h5v2h-5v-2Zm0 4h5v2h-5v-2Z") }
-fn icon_image() -> AnyView { svg("M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v11l4-4 3 3 3-3 6 6V5H4Zm3 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z") }
-fn icon_video() -> AnyView { svg("M4 5h12a2 2 0 0 1 2 2v2l4-2v10l-4-2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h12V7H4Zm14 4.2v1.6l2 .9V10.3l-2 .9Z") }
-fn icon_archive() -> AnyView { svg("M4 3h16v5h-1v13H5V8H4V3Zm2 2v1h12V5H6Zm1 3v11h10V8H7Zm3 3h4v2h-4v-2Z") }
-fn icon_info() -> AnyView { svg("M11 10h2v8h-2v-8Zm0-4h2v2h-2V6Zm1-4a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Z") }
-fn icon_folder() -> AnyView { svg("M3 5h7l2 2h9v12H3V5Zm2 2v10h14V9h-7.8l-2-2H5Z") }
-fn icon_file() -> AnyView { svg("M6 2h8l5 5v15H6V2Zm2 2v16h9V8h-4V4H8Zm7 .4V6h1.6L15 4.4Z") }
-fn icon_copy() -> AnyView { svg("M8 7h12v15H8V7Zm2 2v11h8V9h-8ZM4 2h12v3h-2V4H6v11h1v2H4V2Z") }
-fn icon_edit() -> AnyView { svg("m16.7 3.3 4 4L9 19H5v-4L16.7 3.3Zm0 2.8L7 15.8V17h1.2l9.7-9.7-1.2-1.2ZM4 21h16v2H4v-2Z") }
-fn icon_warning() -> AnyView { svg("M12 2 1 21h22L12 2Zm0 4 7.5 13h-15L12 6Zm-1 4v5h2v-5h-2Zm0 7v2h2v-2h-2Z") }
-fn icon_search_large() -> AnyView { icon_search() }
-fn icon_empty() -> AnyView { svg("M4 4h16v16H4V4Zm2 2v12h12V6H6Zm2 3h8v2H8V9Zm0 4h5v2H8v-2Z") }
-fn icon_minimize() -> AnyView { svg("M5 12h14v1H5v-1Z") }
-fn icon_maximize() -> AnyView { svg("M5 5h14v14H5V5Zm1.5 1.5v11h11v-11h-11Z") }
-fn icon_close() -> AnyView { svg("m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z") }
+fn icon_search() -> AnyView {
+    svg("M10.8 4.2a6.6 6.6 0 1 0 4.08 11.79l4.32 4.32 1.41-1.42-4.32-4.31A6.6 6.6 0 0 0 10.8 4.2Zm0 2a4.6 4.6 0 1 1 0 9.2 4.6 4.6 0 0 1 0-9.2Z")
+}
+fn icon_open() -> AnyView {
+    svg("M5 4h6v2H6v12h12v-5h2v7H4V4h1Zm8-1h8v8h-2V6.41l-8.3 8.3-1.4-1.42L17.58 5H13V3Z")
+}
+fn icon_folder_open() -> AnyView {
+    svg("M3 5h7l2 2h9v3h-2V9h-7.8l-2-2H5v10.2L7.2 11H22l-3.4 9H3V5Zm4.2 8L5.4 18h11.8l1.9-5H7.2Z")
+}
+fn icon_trash() -> AnyView {
+    svg("M8 4V2h8v2h5v2H3V4h5Zm-2 4h12l-1 14H7L6 8Zm3 2 .6 10h1L10 10H9Zm5 0-.6 10h1L15 10h-1Z")
+}
+fn icon_home() -> AnyView {
+    svg("m12 3 9 8h-3v10h-5v-6h-2v6H6V11H3l9-8Zm0 2.7L7.5 9.7V19H9v-6h6v6h1.5V9.7L12 5.7Z")
+}
+fn icon_clock() -> AnyView {
+    svg("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 3v6l5 3 1-1.7-4-2.3V7h-2Z")
+}
+fn icon_document() -> AnyView {
+    svg("M6 2h8l5 5v15H6V2Zm2 2v16h9V8h-4V4H8Zm7 .4V6h1.6L15 4.4ZM10 11h5v2h-5v-2Zm0 4h5v2h-5v-2Z")
+}
+fn icon_image() -> AnyView {
+    svg("M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v11l4-4 3 3 3-3 6 6V5H4Zm3 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z")
+}
+fn icon_video() -> AnyView {
+    svg("M4 5h12a2 2 0 0 1 2 2v2l4-2v10l-4-2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h12V7H4Zm14 4.2v1.6l2 .9V10.3l-2 .9Z")
+}
+fn icon_archive() -> AnyView {
+    svg("M4 3h16v5h-1v13H5V8H4V3Zm2 2v1h12V5H6Zm1 3v11h10V8H7Zm3 3h4v2h-4v-2Z")
+}
+fn icon_folder() -> AnyView {
+    svg("M3 5h7l2 2h9v12H3V5Zm2 2v10h14V9h-7.8l-2-2H5Z")
+}
+fn icon_file() -> AnyView {
+    svg("M6 2h8l5 5v15H6V2Zm2 2v16h9V8h-4V4H8Zm7 .4V6h1.6L15 4.4Z")
+}
+fn icon_copy() -> AnyView {
+    svg("M8 7h12v15H8V7Zm2 2v11h8V9h-8ZM4 2h12v3h-2V4H6v11h1v2H4V2Z")
+}
+fn icon_edit() -> AnyView {
+    svg("m16.7 3.3 4 4L9 19H5v-4L16.7 3.3Zm0 2.8L7 15.8V17h1.2l9.7-9.7-1.2-1.2ZM4 21h16v2H4v-2Z")
+}
+fn icon_warning() -> AnyView {
+    svg("M12 2 1 21h22L12 2Zm0 4 7.5 13h-15L12 6Zm-1 4v5h2v-5h-2Zm0 7v2h2v-2h-2Z")
+}
+fn icon_search_large() -> AnyView {
+    icon_search()
+}
+fn icon_empty() -> AnyView {
+    svg("M4 4h16v16H4V4Zm2 2v12h12V6H6Zm2 3h8v2H8V9Zm0 4h5v2H8v-2Z")
+}
+fn icon_minimize() -> AnyView {
+    svg("M5 12h14v1H5v-1Z")
+}
+fn icon_maximize() -> AnyView {
+    svg("M5 5h14v14H5V5Zm1.5 1.5v11h11v-11h-11Z")
+}
+fn icon_close() -> AnyView {
+    svg("m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z")
+}

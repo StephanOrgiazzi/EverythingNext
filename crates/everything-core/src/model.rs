@@ -33,7 +33,10 @@ pub struct SortSpec {
 
 impl Default for SortSpec {
     fn default() -> Self {
-        Self { column: SortColumn::Name, direction: SortDirection::Ascending }
+        Self {
+            column: SortColumn::Name,
+            direction: SortDirection::Ascending,
+        }
     }
 }
 
@@ -45,7 +48,6 @@ pub struct QueryRequest {
     pub sort: SortSpec,
     pub request_id: u32,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SelectionRange {
@@ -219,7 +221,11 @@ mod selection_tests {
 
         assert_eq!(selection.count(), expected.len() as u64);
         for index in 0..=55 {
-            assert_eq!(selection.contains(index), expected.contains(&index), "{index}");
+            assert_eq!(
+                selection.contains(index),
+                expected.contains(&index),
+                "{index}"
+            );
         }
     }
 

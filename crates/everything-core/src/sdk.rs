@@ -119,7 +119,8 @@ impl EverythingSdk {
             message: if loaded {
                 format!("Everything {version} connecté via le SDK IPC.")
             } else {
-                "SDK chargé, mais la base Everything n’est pas disponible. Lancez Everything.".into()
+                "SDK chargé, mais la base Everything n’est pas disponible. Lancez Everything."
+                    .into()
             },
             version: Some(version),
         }
@@ -130,7 +131,9 @@ impl EverythingSdk {
         let sort = map_sort(request.sort.column, request.sort.direction);
         unsafe {
             (self.set_search_w)(search.as_ptr());
-            (self.set_request_flags)(REQUEST_FILE_NAME | REQUEST_PATH | REQUEST_SIZE | REQUEST_DATE_MODIFIED);
+            (self.set_request_flags)(
+                REQUEST_FILE_NAME | REQUEST_PATH | REQUEST_SIZE | REQUEST_DATE_MODIFIED,
+            );
             (self.set_offset)(request.offset);
             (self.set_max)(request.limit.clamp(1, 4096));
             (self.set_sort)(sort);
@@ -155,7 +158,8 @@ impl EverythingSdk {
             };
             let is_dir = unsafe { (self.is_folder_result)(index) != 0 };
             let mut raw_size = 0_u64;
-            let size = unsafe { ((self.get_result_size)(index, &mut raw_size) != 0).then_some(raw_size) };
+            let size =
+                unsafe { ((self.get_result_size)(index, &mut raw_size) != 0).then_some(raw_size) };
             let mut raw_date = 0_u64;
             let modified_unix = unsafe {
                 ((self.get_result_date_modified)(index, &mut raw_date) != 0)
@@ -192,11 +196,7 @@ impl EverythingSdk {
         F: FnMut() -> bool,
     {
         let ranges = normalize_selection_ranges(request.ranges);
-        let requested = ranges
-            .iter()
-            .copied()
-            .map(|range| range.len())
-            .sum::<u64>();
+        let requested = ranges.iter().copied().map(|range| range.len()).sum::<u64>();
         if requested > max_items as u64 {
             return Err(EngineError::InvalidSelection(format!(
                 "Cette opération est limitée à {max_items} éléments à la fois"
@@ -261,7 +261,9 @@ fn normalize_selection_ranges(
 fn locate_sdk() -> Option<PathBuf> {
     if let Ok(explicit) = env::var("EVERYTHING_SDK_DLL") {
         let path = PathBuf::from(explicit);
-        if path.is_file() { return Some(path); }
+        if path.is_file() {
+            return Some(path);
+        }
     }
 
     let mut candidates = Vec::new();
@@ -283,9 +285,13 @@ fn to_wide(value: &str) -> Vec<u16> {
 }
 
 unsafe fn wide_ptr_to_string(pointer: *const u16) -> String {
-    if pointer.is_null() { return String::new(); }
+    if pointer.is_null() {
+        return String::new();
+    }
     let mut length = 0;
-    while *pointer.add(length) != 0 { length += 1; }
+    while *pointer.add(length) != 0 {
+        length += 1;
+    }
     String::from_utf16_lossy(std::slice::from_raw_parts(pointer, length))
 }
 
@@ -319,9 +325,7 @@ fn stable_id(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        filetime_to_unix, map_sort, normalize_selection_ranges, stable_id, SORT_NAME_ASC,
-    };
+    use super::{filetime_to_unix, map_sort, normalize_selection_ranges, stable_id, SORT_NAME_ASC};
     use crate::{SelectionRange, SortColumn, SortDirection};
 
     #[test]
@@ -350,7 +354,9 @@ mod tests {
             SelectionRange::new(9, 12),
             SelectionRange::new(24, 30),
         ]);
-        assert_eq!(ranges, vec![SelectionRange::new(4, 12), SelectionRange::new(20, 30)]);
+        assert_eq!(
+            ranges,
+            vec![SelectionRange::new(4, 12), SelectionRange::new(20, 30)]
+        );
     }
-
 }

@@ -44,7 +44,8 @@ pub async fn status() -> EngineStatus {
         Ok(status) => status,
         Err(error) if error.contains("Tauri API unavailable") => EngineStatus {
             available: false,
-            message: "Aperçu navigateur — lancez `cargo tauri dev` pour utiliser Everything.".into(),
+            message: "Aperçu navigateur — lancez `cargo tauri dev` pour utiliser Everything."
+                .into(),
             version: None,
         },
         Err(error) => EngineStatus {
@@ -55,7 +56,6 @@ pub async fn status() -> EngineStatus {
     }
 }
 
-
 pub async fn begin_generation(request_id: u32) {
     let _ = invoke::<serde_json::Value, _>(
         "begin_search_generation",
@@ -65,7 +65,12 @@ pub async fn begin_generation(request_id: u32) {
 }
 
 pub async fn search(request: QueryRequest) -> Result<SearchPage, String> {
-    match invoke("search_everything", &serde_json::json!({ "request": request })).await {
+    match invoke(
+        "search_everything",
+        &serde_json::json!({ "request": request }),
+    )
+    .await
+    {
         Ok(page) => Ok(page),
         Err(error) if error.contains("Tauri API unavailable") => Ok(mock_page(request)),
         Err(error) => Err(error),
@@ -161,7 +166,11 @@ fn js_error_to_string(value: JsValue) -> String {
 }
 
 fn mock_page(request: QueryRequest) -> SearchPage {
-    let total = if request.query.trim().is_empty() { 0 } else { 12_480 };
+    let total = if request.query.trim().is_empty() {
+        0
+    } else {
+        12_480
+    };
     let mut items = Vec::new();
     let end = (request.offset + request.limit).min(total);
 
@@ -178,7 +187,12 @@ fn mock_page(request: QueryRequest) -> SearchPage {
         let name = if is_dir {
             format!("Projet {:04}", index)
         } else {
-            format!("{}-resultat-{:05}.{}", request.query.replace(' ', "-"), index, extension)
+            format!(
+                "{}-resultat-{:05}.{}",
+                request.query.replace(' ', "-"),
+                index,
+                extension
+            )
         };
         let path = if is_dir {
             format!(r"C:\Users\Public\Documents\{}", name)
@@ -188,7 +202,10 @@ fn mock_page(request: QueryRequest) -> SearchPage {
         items.push(SearchResult {
             id: format!("mock-{index}"),
             name,
-            parent_path: path.rsplit_once('\\').map(|(p, _)| p.to_string()).unwrap_or_default(),
+            parent_path: path
+                .rsplit_once('\\')
+                .map(|(p, _)| p.to_string())
+                .unwrap_or_default(),
             full_path: path,
             size: (!is_dir).then_some((index as u64 + 1) * 48_713),
             modified_unix: Some(1_720_000_000 + (index as i64 * 733)),

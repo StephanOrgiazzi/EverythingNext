@@ -1,0 +1,11 @@
+# Rust build artifacts
+/target/
+
+# Trunk build output
+/dist/
+
+# Tauri-generated schemas
+/src-tauri/gen/
+
+# Locally downloaded Everything SDK runtime
+/src-tauri/Everything64.dll
