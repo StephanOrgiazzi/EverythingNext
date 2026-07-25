@@ -3,6 +3,9 @@
   color-scheme: light dark;
   --bg: #f6f6f6;
   --chrome: #f3f3f3;
+  --header-bg: var(--chrome);
+  --sidebar-bg: var(--chrome);
+  --search-bg: #ffffff;
   --surface: rgba(255,255,255,.76);
   --surface-solid: #ffffff;
   --surface-2: #fafafa;
@@ -25,6 +28,9 @@
   :root {
     --bg: #191919;
     --chrome: #202020;
+    --header-bg: #2c2c2c;
+    --sidebar-bg: #191919;
+    --search-bg: #383838;
     --surface: rgba(32,32,32,.94);
     --surface-solid: #191919;
     --surface-2: #202020;
@@ -51,7 +57,7 @@ button { border: 0; cursor: default; }
 svg { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
 
 .app-shell { height: 100vh; display: grid; grid-template-rows: 32px 48px 42px minmax(0, 1fr); outline: none; background: var(--bg); }
-.titlebar { display: flex; align-items: center; gap: 9px; padding: 0 0 0 10px; background: var(--chrome); }
+.titlebar { display: flex; align-items: center; gap: 9px; padding: 0 0 0 10px; background: var(--header-bg); }
 .app-mark { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 5px; background: linear-gradient(145deg,#0078d4,#55b7e7); color: white; font-size: 11px; font-weight: 700; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
 .app-title { font-size: 12px; font-weight: 600; letter-spacing: .01em; }
 .titlebar-spacer { flex: 1; height: 100%; }
@@ -63,16 +69,17 @@ svg { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
 .window-control.close:hover { background: #c42b1c; color: #fff; }
 .window-control:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-.search-toolbar { min-width: 0; display: flex; align-items: center; padding: 6px 10px; background: var(--chrome); }
+.search-toolbar { min-width: 0; display: flex; align-items: center; padding: 6px 10px; background: var(--header-bg); }
 .command-bar { display: flex; align-items: center; gap: 2px; padding: 4px 10px; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(20px) saturate(1.15); }
-.command-button:hover { background: var(--hover); }
-.command-button:active { background: var(--pressed); }
+.command-button:not(:disabled):hover { background: var(--hover); }
+.command-button:not(:disabled):active { background: var(--pressed); }
 .command-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .command-button { height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 5px; background: transparent; }
+.command-button:disabled { color: var(--muted); opacity: .5; }
 .command-button svg { width: 17px; height: 17px; }
 .command-separator { width: 1px; height: 20px; margin: 0 5px; background: var(--border); }
-.danger-hover:hover { color: var(--danger); }
-.search-box { width: 100%; min-width: 0; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border-soft); border-radius: 4px; background: var(--surface-solid); }
+.danger-hover:not(:disabled):hover { color: var(--danger); }
+.search-box { width: 100%; min-width: 0; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border-soft); border-radius: 4px; background: var(--search-bg); }
 .search-box:focus-within { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
 .search-box > svg { color: var(--muted); }
 .search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; user-select: text; }
@@ -80,7 +87,7 @@ svg { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
 kbd { padding: 1px 4px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface-2); color: var(--muted); font-size: 10px; font-family: inherit; }
 
 .workspace { min-height: 0; display: grid; grid-template-columns: 204px minmax(0, 1fr); }
-.sidebar { min-height: 0; display: flex; flex-direction: column; padding: 8px 6px; border-right: 1px solid var(--border); background: var(--chrome); }
+.sidebar { min-height: 0; display: flex; flex-direction: column; padding: 8px 6px; border-right: 1px solid var(--border); background: var(--sidebar-bg); }
 .sidebar-section-label { padding: 9px 10px 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .sidebar-separator { height: 1px; margin: 7px 10px 2px; background: var(--border-soft); }
 .sidebar-item { position: relative; width: 100%; height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 9px; border-radius: 5px; background: transparent; text-align: left; }

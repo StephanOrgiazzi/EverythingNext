@@ -306,8 +306,7 @@ fn is_autostart_launch() -> bool {
 }
 
 fn string_args_include_autostart(args: &[String]) -> bool {
-    args.iter()
-        .any(|arg| is_autostart_arg(OsStr::new(arg)))
+    args.iter().any(|arg| is_autostart_arg(OsStr::new(arg)))
 }
 
 #[cfg(all(windows, not(debug_assertions)))]

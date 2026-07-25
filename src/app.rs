@@ -453,18 +453,18 @@ pub fn App() -> impl IntoView {
             </div>
 
             <section class="command-bar" aria-label="Commandes">
-                <button class="command-button" title="Ouvrir" on:click=move |_| {
+                <button class="command-button" title="Ouvrir" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
                     if let Some(item) = focused_item(focused_index, pages) {
                         open_item(item.full_path, error);
                     }
                 }>{icon_open()}<span>"Ouvrir"</span></button>
-                <button class="command-button" title="Afficher dans l’Explorateur" on:click=move |_| {
+                <button class="command-button" title="Afficher dans l’Explorateur" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
                     if let Some(item) = focused_item(focused_index, pages) {
                         reveal_item(item.full_path, error);
                     }
                 }>{icon_folder_open()}<span>"Afficher dans l’Explorateur"</span></button>
                 <span class="command-separator"></span>
-                <button class="command-button danger-hover" title="Mettre à la Corbeille" on:click=move |_| begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error)>{icon_trash()}<span>"Supprimer"</span></button>
+                <button class="command-button danger-hover" title="Mettre à la Corbeille" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error)>{icon_trash()}<span>"Supprimer"</span></button>
             </section>
 
             <div class="workspace">
