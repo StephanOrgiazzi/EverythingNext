@@ -3,7 +3,6 @@
 
   const STORAGE_KEY = "everything-modern-view-mode";
   const LOGICAL_ROW_HEIGHT = 34;
-  const LOGICAL_OVERSCAN = 8;
   const GRID_PADDING = 10;
   const GRID_GAP = 8;
   const MODES = {
@@ -320,9 +319,7 @@
     if (!state || state.mode === "details") return;
     const config = MODES[state.mode];
     const firstIndex = Math.floor(state.overlay.scrollTop / config.itemHeight) * state.columns;
-    // The Leptos list subtracts eight rows of overscan. Offset the hidden
-    // logical viewport so all visible icon cells fall inside its rendered range.
-    const target = (firstIndex + LOGICAL_OVERSCAN) * LOGICAL_ROW_HEIGHT;
+    const target = firstIndex * LOGICAL_ROW_HEIGHT;
     if (Math.abs(state.originalScroll.scrollTop - target) < 1) return;
 
     state.syncingFromOverlay = true;
@@ -335,11 +332,8 @@
   function onOriginalScroll() {
     if (!state || state.mode === "details" || state.syncingFromOverlay) return;
     const config = MODES[state.mode];
-    const logicalStart = Math.max(
-      0,
-      Math.floor(state.originalScroll.scrollTop / LOGICAL_ROW_HEIGHT) - LOGICAL_OVERSCAN,
-    );
-    const target = Math.floor(logicalStart / state.columns) * config.itemHeight;
+    const firstIndex = Math.max(0, Math.floor(state.originalScroll.scrollTop / LOGICAL_ROW_HEIGHT));
+    const target = Math.floor(firstIndex / state.columns) * config.itemHeight;
     if (Math.abs(state.overlay.scrollTop - target) < 1) return;
 
     state.syncingFromOriginal = true;
