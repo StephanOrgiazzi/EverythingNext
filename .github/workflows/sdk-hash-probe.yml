@@ -1,0 +1,36 @@
+name: SDK Hash Probe
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  hash-sdk:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download and hash SDK3
+        shell: pwsh
+        run: |
+          $version = "3.0.0.9"
+          $archive = Join-Path $env:RUNNER_TEMP "Everything-SDK-$version.zip"
+          $extract = Join-Path $env:RUNNER_TEMP "everything-sdk3"
+          Invoke-WebRequest "https://www.voidtools.com/Everything-SDK-$version.zip" -OutFile $archive
+          $archiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          Expand-Archive $archive -DestinationPath $extract -Force
+          $dll = Get-ChildItem $extract -Recurse -Filter "Everything3_x64.dll" | Select-Object -First 1
+          if (-not $dll) { throw "Everything3_x64.dll missing" }
+          $dllHash = (Get-FileHash $dll.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "archive=$archiveHash"
+            "dll=$dllHash"
+          ) | Set-Content sdk-hashes.txt
+      - name: Upload hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-hashes
+          path: sdk-hashes.txt
+          retention-days: 1
