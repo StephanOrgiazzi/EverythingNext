@@ -8,12 +8,16 @@ pub use model::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
-    #[error("Everything SDK introuvable. Installez Everything64.dll avec scripts/install-everything-sdk.ps1 ou définissez EVERYTHING_SDK_DLL.")]
+    #[error("Everything SDK3 introuvable. Installez Everything3_x64.dll avec scripts/install-everything-sdk.ps1 ou définissez EVERYTHING_SDK3_DLL.")]
     SdkNotFound,
-    #[error("Impossible de charger le SDK Everything : {0}")]
+    #[error("Impossible de charger Everything SDK3 : {0}")]
     SdkLoad(String),
-    #[error("Everything ne répond pas via IPC (code {0}). Vérifiez que Everything est lancé.")]
-    QueryFailed(u32),
+    #[error("Impossible de connecter Everything SDK3 à {instance} (code 0x{code:08X}). Vérifiez qu’Everything 1.5 est lancé dans cette instance.")]
+    ConnectionFailed { instance: String, code: u32 },
+    #[error("Version Everything non prise en charge : {0}. Everything Modern nécessite Everything 1.5.")]
+    UnsupportedEverythingVersion(String),
+    #[error("Échec de l’appel SDK3 {operation} (code 0x{code:08X}).")]
+    SdkCall { operation: &'static str, code: u32 },
     #[error("Everything Modern nécessite Windows pour accéder au moteur Everything.")]
     UnsupportedPlatform,
     #[error("Sélection invalide : {0}")]
@@ -26,9 +30,9 @@ pub struct EverythingEngine {
 }
 
 impl EverythingEngine {
-    /// Charge le SDK depuis les emplacements de développement usuels ou la variable
-    /// `EVERYTHING_SDK_DLL`. L'application Tauri utilise plutôt `from_dll_path` afin
-    /// de résoudre explicitement la ressource du bundle installé.
+    /// Charge Everything SDK3 depuis le bundle de développement ou depuis
+    /// `EVERYTHING_SDK3_DLL`, puis se connecte à l’instance Everything 1.5
+    /// configurée par `EVERYTHING_INSTANCE` (instance principale par défaut).
     pub fn new() -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
@@ -42,9 +46,9 @@ impl EverythingEngine {
         }
     }
 
-    /// Charge explicitement une DLL Everything SDK. Cette API garde la crate
-    /// indépendante de Tauri tout en permettant au shell desktop de lui fournir
-    /// le chemin `$RESOURCE/Everything64.dll`.
+    /// Charge explicitement la DLL SDK3. Cette API garde la crate indépendante
+    /// de Tauri tout en permettant au shell desktop de fournir le chemin de la
+    /// ressource `Everything3_x64.dll` du bundle installé.
     pub fn from_dll_path(path: impl AsRef<Path>) -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
