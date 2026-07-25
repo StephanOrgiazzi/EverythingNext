@@ -1,10 +1,10 @@
+use crate::EngineError;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
-use std::thread;
-use std::time::{Duration, Instant};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const DEFAULT_INSTANCE_NAME: &str = "EverythingModern";
@@ -21,72 +21,50 @@ pub(crate) struct ManagedEngine {
 }
 
 impl ManagedEngine {
-    pub(crate) fn start() -> Option<Self> {
-        let executable = locate_engine()?;
-        let instance_name = env::var("EVERYTHING_INSTANCE")
-            .unwrap_or_else(|_| DEFAULT_INSTANCE_NAME.to_string());
+    pub(crate) fn start() -> Result<Self, EngineError> {
+        let instance_name =
+            env::var("EVERYTHING_INSTANCE").unwrap_or_else(|_| DEFAULT_INSTANCE_NAME.to_string());
+        if !valid_instance_name(&instance_name) {
+            return Err(EngineError::InvalidInstance(
+                "use 1-64 ASCII letters, digits, dots, underscores, or hyphens".to_string(),
+            ));
+        }
 
         // SDK3 reads this variable when establishing its IPC3 connection.
         env::set_var("EVERYTHING_INSTANCE", &instance_name);
 
+        let executable = locate_engine().ok_or(EngineError::EngineNotFound)?;
         let ipc_pipe = ipc_pipe_name(&instance_name);
         if named_pipe_available(&ipc_pipe) {
-            return Some(Self::inactive(executable, instance_name));
+            return Ok(Self::inactive(executable, instance_name));
         }
 
-        let data_directory = engine_data_directory()?;
-        if fs::create_dir_all(&data_directory).is_err() {
-            return Some(Self::inactive(executable, instance_name));
-        }
+        let data_directory = engine_data_directory(&instance_name)
+            .ok_or_else(|| EngineError::EngineSetup("LOCALAPPDATA is not available".to_string()))?;
+        fs::create_dir_all(&data_directory).map_err(|error| {
+            EngineError::EngineSetup(format!(
+                "unable to create {}: {error}",
+                data_directory.display()
+            ))
+        })?;
 
         let service_pipe = service_pipe_name(&instance_name);
         let config = data_directory.join("Everything.ini");
         let database = data_directory.join("Everything.db");
-        if write_config(&config, &service_pipe).is_err() {
-            return Some(Self::inactive(executable, instance_name));
-        }
+        write_config(&config, &service_pipe).map_err(|error| {
+            EngineError::EngineSetup(format!("unable to update {}: {error}", config.display()))
+        })?;
 
-        let mut command = Command::new(&executable);
-        if !instance_name.is_empty() {
-            command.arg("-instance").arg(&instance_name);
-        }
-        command
-            .arg("-first-instance")
-            .arg("-startup")
-            .arg("-config")
-            .arg(&config)
-            .arg("-db")
-            .arg(&database)
-            .arg("-service-pipe-name")
-            .arg(&service_pipe)
-            .creation_flags(CREATE_NO_WINDOW);
+        // `-service-pipe-name` is an install/configuration command that makes
+        // Everything exit after applying it. The persistent INI value above is
+        // the runtime source of truth.
+        let child = engine_command(&executable, &instance_name, &config, &database)
+            .spawn()
+            .map_err(|error| EngineError::EngineStart(error.to_string()))?;
 
-        let mut child = match command.spawn() {
-            Ok(child) => child,
-            Err(_) => return Some(Self::inactive(executable, instance_name)),
-        };
-
-        let deadline = Instant::now() + Duration::from_secs(8);
-        while Instant::now() < deadline {
-            match child.try_wait() {
-                Ok(Some(_)) | Err(_) => {
-                    return Some(Self::inactive(executable, instance_name));
-                }
-                Ok(None) => {}
-            }
-            if named_pipe_available(&ipc_pipe) {
-                return Some(Self {
-                    executable,
-                    instance_name,
-                    child: Some(child),
-                });
-            }
-            thread::sleep(Duration::from_millis(50));
-        }
-
-        // Keep ownership when the process is still alive. SDK3 will retry the
-        // connection later if the IPC pipe takes unusually long to appear.
-        Some(Self {
+        // SDK3 retries on demand while the private engine initializes. Avoid
+        // blocking Tauri setup on the first index startup.
+        Ok(Self {
             executable,
             instance_name,
             child: Some(child),
@@ -115,7 +93,7 @@ impl ManagedEngine {
         for _ in 0..40 {
             match child.try_wait() {
                 Ok(Some(_)) | Err(_) => return,
-                Ok(None) => thread::sleep(Duration::from_millis(50)),
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
             }
         }
 
@@ -132,31 +110,140 @@ impl ManagedEngine {
     }
 }
 
-fn write_config(path: &Path, service_pipe: &str) -> std::io::Result<()> {
-    let config = format!(
-        "[Everything]\n\
-run_as_admin=0\n\
-run_in_background=1\n\
-show_in_taskbar=0\n\
-show_tray_icon=0\n\
-minimize_to_tray=0\n\
-check_for_updates_on_startup=0\n\
-beta_updates=0\n\
-allow_multiple_instances=0\n\
-ipc_enabled=1\n\
-service_pipe_name={service_pipe}\n"
-    );
+fn engine_command(
+    executable: &Path,
+    instance_name: &str,
+    config: &Path,
+    database: &Path,
+) -> Command {
+    let mut command = Command::new(executable);
+    command
+        .arg("-instance")
+        .arg(instance_name)
+        .arg("-first-instance")
+        .arg("-startup")
+        .arg("-config")
+        .arg(config)
+        .arg("-db")
+        .arg(database)
+        .creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
-    if fs::read_to_string(path).ok().as_deref() == Some(config.as_str()) {
+fn write_config(path: &Path, service_pipe: &str) -> std::io::Result<()> {
+    let existing = match fs::read_to_string(path) {
+        Ok(existing) => existing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error),
+    };
+    let config = merge_config(&existing, service_pipe);
+
+    if existing == config {
         return Ok(());
     }
     fs::write(path, config)
 }
 
-fn engine_data_directory() -> Option<PathBuf> {
-    env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .map(|path| path.join("EverythingModern").join("Engine"))
+fn merge_config(existing: &str, service_pipe: &str) -> String {
+    let desired = [
+        ("run_as_admin", "0".to_string()),
+        ("run_in_background", "1".to_string()),
+        ("show_in_taskbar", "0".to_string()),
+        ("show_tray_icon", "0".to_string()),
+        ("minimize_to_tray", "0".to_string()),
+        ("check_for_updates_on_startup", "0".to_string()),
+        ("beta_updates", "0".to_string()),
+        ("allow_multiple_instances", "0".to_string()),
+        ("ipc_enabled", "1".to_string()),
+        ("service_pipe_name", service_pipe.to_string()),
+    ];
+    let newline = if existing.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut output = Vec::new();
+    let mut seen = HashSet::new();
+    let mut in_everything = false;
+    let mut found_everything = false;
+
+    let append_missing = |output: &mut Vec<String>, seen: &mut HashSet<&str>| {
+        for (key, value) in &desired {
+            if seen.insert(*key) {
+                output.push(format!("{key}={value}"));
+            }
+        }
+    };
+
+    for line in existing.lines() {
+        let trimmed = line.trim();
+        let section = trimmed.strip_prefix('\u{feff}').unwrap_or(trimmed);
+        if section.starts_with('[') && section.ends_with(']') {
+            if in_everything {
+                append_missing(&mut output, &mut seen);
+            }
+            in_everything = section[1..section.len() - 1].eq_ignore_ascii_case("Everything");
+            found_everything |= in_everything;
+            output.push(line.to_string());
+            continue;
+        }
+
+        if in_everything {
+            if let Some((raw_key, _)) = line.split_once('=') {
+                if let Some((key, value)) = desired
+                    .iter()
+                    .find(|(key, _)| raw_key.trim().eq_ignore_ascii_case(key))
+                {
+                    if seen.insert(*key) {
+                        output.push(format!("{key}={value}"));
+                    }
+                    continue;
+                }
+            }
+        }
+        output.push(line.to_string());
+    }
+
+    if in_everything {
+        append_missing(&mut output, &mut seen);
+    } else if !found_everything {
+        if !output.is_empty() && !output.last().is_some_and(String::is_empty) {
+            output.push(String::new());
+        }
+        output.push("[Everything]".to_string());
+        append_missing(&mut output, &mut seen);
+    }
+
+    format!("{}{newline}", output.join(newline))
+}
+
+fn engine_data_directory(instance_name: &str) -> Option<PathBuf> {
+    env::var_os("LOCALAPPDATA").map(PathBuf::from).map(|path| {
+        let base = path.join("EverythingModern").join("Engine");
+        if instance_name == DEFAULT_INSTANCE_NAME {
+            base
+        } else {
+            base.join(instance_storage_key(instance_name))
+        }
+    })
+}
+
+fn instance_storage_key(instance_name: &str) -> String {
+    let hash = instance_name
+        .as_bytes()
+        .iter()
+        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        });
+    format!("instance-{hash:016x}")
+}
+
+fn valid_instance_name(instance_name: &str) -> bool {
+    !instance_name.is_empty()
+        && instance_name.len() <= 64
+        && instance_name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
 fn locate_engine() -> Option<PathBuf> {
@@ -201,11 +288,7 @@ fn ipc_pipe_name(instance_name: &str) -> String {
 }
 
 fn service_pipe_name(instance_name: &str) -> String {
-    if instance_name.is_empty() {
-        r"\\.\PIPE\Everything Service".to_string()
-    } else {
-        format!(r"\\.\PIPE\Everything Service ({instance_name})")
-    }
+    format!(r"\\.\PIPE\Everything Service ({instance_name})")
 }
 
 fn named_pipe_available(name: &str) -> bool {
@@ -214,4 +297,73 @@ fn named_pipe_available(name: &str) -> bool {
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
     unsafe { WaitNamedPipeW(wide.as_ptr(), 0) != 0 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merges_owned_settings_without_discarding_existing_configuration() {
+        let existing = "[Everything]\r\ncustom_setting=keep\r\nshow_tray_icon=1\r\n\r\n[Other]\r\nvalue=keep\r\n";
+        let merged = merge_config(existing, r"\\.\PIPE\Everything Service (Test)");
+
+        assert!(merged.contains("custom_setting=keep\r\n"));
+        assert!(merged.contains("show_tray_icon=0\r\n"));
+        assert!(merged.contains("[Other]\r\nvalue=keep\r\n"));
+        assert_eq!(merged.matches("show_tray_icon=").count(), 1);
+    }
+
+    #[test]
+    fn adds_the_everything_section_when_missing() {
+        let merged = merge_config("[Other]\nvalue=keep\n", "test-pipe");
+
+        assert!(merged.contains("[Other]\nvalue=keep\n\n[Everything]\n"));
+        assert!(merged.contains("service_pipe_name=test-pipe\n"));
+    }
+
+    #[test]
+    fn recognizes_a_utf8_bom_without_duplicating_the_section() {
+        let merged = merge_config("\u{feff}[Everything]\nshow_tray_icon=1\n", "test-pipe");
+
+        assert_eq!(merged.matches("[Everything]").count(), 1);
+        assert!(merged.contains("show_tray_icon=0\n"));
+    }
+
+    #[test]
+    fn overridden_instances_have_distinct_storage_keys() {
+        assert_ne!(
+            instance_storage_key("EverythingModernDev"),
+            instance_storage_key("EverythingModernTest")
+        );
+    }
+
+    #[test]
+    fn instance_names_are_safe_for_process_arguments_and_storage() {
+        assert!(valid_instance_name("EverythingModern.Dev-1"));
+        assert!(!valid_instance_name(""));
+        assert!(!valid_instance_name("bad instance"));
+        assert!(!valid_instance_name("bad\" -quit"));
+    }
+
+    #[test]
+    fn runtime_command_does_not_reapply_the_service_pipe_setting() {
+        let command = engine_command(
+            Path::new("Everything.exe"),
+            "EverythingModern",
+            Path::new("Everything.ini"),
+            Path::new("Everything.db"),
+        );
+        let arguments = command
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(!arguments
+            .iter()
+            .any(|argument| argument == "-service-pipe-name"));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["-instance", "EverythingModern"]));
+    }
 }

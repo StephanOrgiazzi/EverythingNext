@@ -13,6 +13,10 @@ if (-not (Test-Path "src-tauri\Everything3_x64.dll") -and -not (Test-ExplicitFil
 if (-not (Test-Path "src-tauri\engine\Everything.exe") -and -not (Test-ExplicitFile "EVERYTHING_ENGINE_EXE")) {
   & "$PSScriptRoot\install-everything-runtime.ps1"
 }
+if ([string]::IsNullOrWhiteSpace($env:EVERYTHING_INSTANCE)) {
+  $env:EVERYTHING_INSTANCE = "EverythingModernDev"
+}
+& "$PSScriptRoot\ensure-everything-dev-service.ps1" -InstanceName $env:EVERYTHING_INSTANCE
 if (-not (Test-Path "Cargo.lock")) {
   cargo generate-lockfile
 }

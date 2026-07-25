@@ -38,4 +38,4 @@ if (-not $SkipRuntime -and -not (Test-Path "src-tauri\engine\Everything.exe")) {
 }
 
 Write-Host "Toolchain, lockfile, SDK3 and Everything 1.5 runtime are ready." -ForegroundColor Green
-Write-Host "Run .\scripts\check.ps1 then .\scripts\dev.ps1."
+Write-Host "Run .\scripts\check.ps1 then .\scripts\dev.ps1. The first development launch requests elevation to install its protected indexing service."

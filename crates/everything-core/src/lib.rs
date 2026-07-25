@@ -1,6 +1,6 @@
-mod model;
 #[cfg(windows)]
 mod bundled_engine;
+mod model;
 #[cfg(windows)]
 mod sdk;
 
@@ -25,6 +25,14 @@ pub enum EngineError {
     SdkNotFound,
     #[error("Unable to load Everything SDK3: {0}")]
     SdkLoad(String),
+    #[error("The bundled Everything 1.5 runtime was not found. Run scripts/install-everything-runtime.ps1 or set EVERYTHING_ENGINE_EXE.")]
+    EngineNotFound,
+    #[error("Invalid Everything instance name: {0}")]
+    InvalidInstance(String),
+    #[error("Unable to prepare the bundled Everything engine: {0}")]
+    EngineSetup(String),
+    #[error("Unable to start the bundled Everything engine: {0}")]
+    EngineStart(String),
     #[error("Unable to connect Everything SDK3 to {instance} (code 0x{code:08X}). Make sure Everything 1.5 is running in that instance.")]
     ConnectionFailed { instance: String, code: u32 },
     #[error("Unsupported Everything version: {0}. Everything Modern requires Everything 1.5.")]
@@ -179,7 +187,7 @@ impl EverythingEngine {
 
     #[cfg(windows)]
     fn with_dll_path(dll_path: Option<PathBuf>) -> Result<Self, EngineError> {
-        let managed_engine = bundled_engine::ManagedEngine::start();
+        let managed_engine = Some(bundled_engine::ManagedEngine::start()?);
         let engine = Self {
             sdk: RefCell::new(None),
             dll_path,

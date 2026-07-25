@@ -20,14 +20,15 @@ Client Windows moderne pour **Everything 1.5**, construit en Rust avec **Tauri 2
 
 ## Installation utilisateur
 
-Téléchargez et exécutez l’installateur NSIS. Il demande les droits administrateur une fois afin d’installer le service d’indexation privé de l’instance `EverythingModern`.
+Téléchargez et exécutez l’installateur NSIS. L’installation est effectuée pour la machine sous `Program Files` et demande les droits administrateur afin que le binaire du service d’indexation privé ne soit pas modifiable par un utilisateur standard.
 
 Le moteur embarqué :
 
 - fonctionne sans installation séparée d’Everything ;
 - n’affiche ni fenêtre ni icône de notification ;
 - stocke sa configuration et sa base dans `%LOCALAPPDATA%\EverythingModern\Engine` ;
-- est lancé avec l’application et arrêté lorsque l’application quitte réellement ;
+- lance son client avec l’application et l’arrête lorsque l’application quitte réellement ;
+- conserve le service d’indexation léger en arrière-plan entre deux lancements ;
 - utilise une instance, un pipe IPC3 et un service distincts de l’Everything classique.
 
 Everything classique peut donc rester installé et lancé simultanément. Les deux applications conservent leurs propres processus, bases et réglages.
@@ -55,7 +56,9 @@ Set-ExecutionPolicy -Scope Process Bypass
 - Everything SDK3 **3.0.0.9** dans `src-tauri\Everything3_x64.dll` ;
 - Everything **1.5.0.1418b x64 portable** dans `src-tauri\engine\Everything.exe`.
 
-Le SDK3 est vérifié avec des empreintes SHA-256 épinglées. Le runtime est vérifié avec le manifeste SHA-256 officiel de la version, son architecture PE x64 et sa signature Authenticode. Les binaires restent ignorés par Git et sont ajoutés au bundle Tauri pendant le build.
+Le SDK3 et le runtime sont vérifiés avec des empreintes SHA-256 épinglées dans le dépôt. Le runtime est également contrôlé par architecture PE x64 et par certificat Authenticode épinglé. Les binaires restent ignorés par Git et sont ajoutés au bundle Tauri pendant le build.
+
+Le premier lancement de `dev.ps1` crée l’instance de développement `EverythingModernDev`. Il demande une élévation afin de copier le moteur sous `Program Files\Everything Modern Dev` et d’y installer le service associé. Les lancements suivants réutilisent ce service.
 
 En développement, des binaires locaux peuvent être fournis explicitement :
 
@@ -65,7 +68,7 @@ $env:EVERYTHING_SDK3_DLL = "C:\chemin\Everything3_x64.dll"
 $env:EVERYTHING_INSTANCE = "EverythingModernDev"
 ```
 
-Sans override, le runtime embarqué utilise l’instance `EverythingModern`.
+Sans override explicite, l’application installée utilise `EverythingModern` et `dev.ps1` utilise `EverythingModernDev`. Chaque override valide dispose de son propre répertoire de configuration et de base. Les noms d’instance acceptent uniquement 1 à 64 lettres ASCII, chiffres, points, tirets et underscores.
 
 ## Build installable
 
@@ -114,9 +117,9 @@ Everything Modern
 
 ## Validation
 
-La CI Windows télécharge et vérifie le SDK3 et le runtime épinglés, exécute les tests et checks natifs/WASM, construit le frontend Trunk, compile l’installateur NSIS puis le publie comme artefact.
+La CI Windows télécharge et vérifie le SDK3 et le runtime avec des empreintes stockées dans le dépôt, exécute les tests et checks natifs/WASM, construit le frontend Trunk, compile l’installateur NSIS, puis vérifie silencieusement l’installation, la création du service et la désinstallation avant de publier l’artefact.
 
-Avant publication, un smoke test doit encore vérifier sur une VM Windows propre : installation et UAC, création du service privé, première indexation, coexistence avec Everything classique, redémarrage Windows et désinstallation complète.
+Avant publication, un test manuel doit encore vérifier sur une VM Windows propre : parcours UAC visible, première indexation et recherche, coexistence avec Everything classique, double lancement, redémarrage Windows et mise à jour.
 
 ## Licences tierces
 

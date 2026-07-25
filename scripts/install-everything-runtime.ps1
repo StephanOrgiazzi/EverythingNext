@@ -1,13 +1,12 @@
-param(
-  [string]$Version = "1.5.0.1418b"
-)
-
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$temp = Join-Path $env:TEMP "everything-modern-runtime"
-$archiveName = "Everything-$Version.x64.zip"
+$version = "1.5.0.1418b"
+$expectedArchiveSha256 = "2240f7055d772983da5ad3a433dbb9250c501ccb3e835451f76d29fe121c1571"
+$expectedExecutableSha256 = "be20a73fe5f9269baaf7bf15cfc033c17c11debcd1d46fffa5ac91d44fb7348f"
+$expectedSignerThumbprint = "C6B9AE08C3B83981FB1931CDA4A501FCE5F4F92E"
+$temp = Join-Path $env:TEMP "everything-modern-runtime-$([guid]::NewGuid().ToString('N'))"
+$archiveName = "Everything-$version.x64.zip"
 $archive = Join-Path $temp $archiveName
-$manifest = Join-Path $temp "Everything-$Version.sha256"
 $destinationDirectory = Join-Path $projectRoot "src-tauri\engine"
 $destination = Join-Path $destinationDirectory "Everything.exe"
 
@@ -32,16 +31,9 @@ try {
   New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
 
   Invoke-WebRequest "https://www.voidtools.com/$archiveName" -OutFile $archive
-  Invoke-WebRequest "https://www.voidtools.com/Everything-$Version.sha256" -OutFile $manifest
-
-  $manifestLine = Get-Content $manifest | Where-Object { $_ -match [regex]::Escape($archiveName) } | Select-Object -First 1
-  if (-not $manifestLine -or $manifestLine -notmatch "([0-9A-Fa-f]{64})") {
-    throw "The official fingerprint for $archiveName was not found."
-  }
-  $expectedHash = $Matches[1].ToLowerInvariant()
   $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-  if ($actualHash -ne $expectedHash) {
-    throw "Invalid SHA-256 fingerprint for $archiveName."
+  if ($actualHash -ne $expectedArchiveSha256) {
+    throw "Unexpected SHA-256 fingerprint for ${archiveName}: $actualHash"
   }
 
   Expand-Archive $archive -DestinationPath $temp -Force
@@ -51,14 +43,23 @@ try {
   }
 
   Assert-X64Pe $executable.FullName
+  $executableHash = (Get-FileHash $executable.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($executableHash -ne $expectedExecutableSha256) {
+    throw "Unexpected SHA-256 fingerprint for Everything.exe: $executableHash"
+  }
+
   $signature = Get-AuthenticodeSignature $executable.FullName
   if ($signature.Status -ne "Valid" -or -not $signature.SignerCertificate) {
     throw "The Authenticode signature for Everything.exe is invalid."
   }
+  if ($signature.SignerCertificate.Thumbprint -ne $expectedSignerThumbprint) {
+    throw "Everything.exe is signed by an unexpected certificate."
+  }
 
   Copy-Item $executable.FullName $destination -Force
-  Write-Host "Everything $Version installed in src-tauri\engine\Everything.exe" -ForegroundColor Green
-  Write-Host "SHA-256: $actualHash"
+  Write-Host "Everything $version installed in src-tauri\engine\Everything.exe" -ForegroundColor Green
+  Write-Host "Archive SHA-256: $actualHash"
+  Write-Host "Executable SHA-256: $executableHash"
   Write-Host "Signer: $($signature.SignerCertificate.Subject)"
 } finally {
   Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
