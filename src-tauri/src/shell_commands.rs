@@ -1,10 +1,12 @@
 use std::sync::Arc;
 use tauri::State;
-use windows_shell::IconCache;
+use windows_shell::{IconCache, VisualCache};
 
 pub(crate) struct ShellState {
     icons: Arc<IconCache>,
     icon_slots: Arc<tokio::sync::Semaphore>,
+    visuals: Arc<VisualCache>,
+    visual_slots: Arc<tokio::sync::Semaphore>,
 }
 
 impl ShellState {
@@ -12,6 +14,8 @@ impl ShellState {
         Self {
             icons: Arc::new(IconCache::new(512)),
             icon_slots: Arc::new(tokio::sync::Semaphore::new(4)),
+            visuals: Arc::new(VisualCache::new(24 * 1024 * 1024)),
+            visual_slots: Arc::new(tokio::sync::Semaphore::new(2)),
         }
     }
 }
@@ -31,6 +35,31 @@ pub(crate) async fn get_file_icon(
     tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
         icons.get(&path).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn get_file_visual(
+    state: State<'_, ShellState>,
+    path: String,
+    size: u32,
+) -> Result<Option<String>, String> {
+    if !(32..=256).contains(&size) {
+        return Err("File preview size must be between 32 and 256 pixels".into());
+    }
+
+    let permit = state
+        .visual_slots
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| "File preview service has stopped".to_string())?;
+    let visuals = state.visuals.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        visuals.get(&path, size).map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| error.to_string())?

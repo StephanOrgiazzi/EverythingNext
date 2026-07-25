@@ -8,15 +8,17 @@ mod results;
 mod search;
 mod selection;
 mod theme;
+mod view_modes;
 
 use self::columns::{ColumnHeaders, ResultColumns};
 use self::context_menu::{event_target_is_interactive, ResultContextMenu};
 use self::exclusions::{ExcludedFoldersSetting, ExcludedFoldersState};
 use self::file_operations::FileOperations;
-use self::results::{FileIcon, ResultViewport};
-use self::search::{SearchResults, RESULT_ROW_HEIGHT};
+use self::results::{FileIcon, FileVisual, ResultViewport};
+use self::search::SearchResults;
 use self::selection::{FocusMove, ResultSelection, SelectionModifiers};
 use self::theme::{ThemeSetting, ThemeState};
+use self::view_modes::{ViewMode, ViewSwitcher};
 use crate::{backend, window};
 use everything_core::IndexSelection;
 use gloo_timers::future::TimeoutFuture;
@@ -55,6 +57,7 @@ pub fn App() -> impl IntoView {
     let engine_message = RwSignal::new("Connecting to Everything…".to_string());
     let engine_available = RwSignal::new(false);
     let settings_open = RwSignal::new(false);
+    let view_menu_open = RwSignal::new(false);
     let search_ref = NodeRef::<leptos::html::Input>::new();
     let list_ref = viewport.list_ref;
 
@@ -118,27 +121,23 @@ pub fn App() -> impl IntoView {
             return;
         }
 
-        let page_step =
-            ((viewport.height.get_untracked() / RESULT_ROW_HEIGHT).floor() as i32).max(1);
+        if let Some(delta) = viewport.navigation_delta(&key) {
+            event.prevent_default();
+            move_selection_focus(
+                FocusMove::Relative(delta),
+                &event,
+                selection,
+                results,
+                viewport,
+            );
+            return;
+        }
+
         match key.as_str() {
-            "ArrowDown" => {
-                event.prevent_default();
-                move_selection_focus(FocusMove::Relative(1), &event, selection, results, viewport);
-            }
-            "ArrowUp" => {
-                event.prevent_default();
-                move_selection_focus(
-                    FocusMove::Relative(-1),
-                    &event,
-                    selection,
-                    results,
-                    viewport,
-                );
-            }
             "PageDown" => {
                 event.prevent_default();
                 move_selection_focus(
-                    FocusMove::Relative(page_step),
+                    FocusMove::Relative(viewport.page_step()),
                     &event,
                     selection,
                     results,
@@ -148,7 +147,7 @@ pub fn App() -> impl IntoView {
             "PageUp" => {
                 event.prevent_default();
                 move_selection_focus(
-                    FocusMove::Relative(-page_step),
+                    FocusMove::Relative(-viewport.page_step()),
                     &event,
                     selection,
                     results,
@@ -192,11 +191,11 @@ pub fn App() -> impl IntoView {
             }
             "ContextMenu" => {
                 event.prevent_default();
-                menu.open_at_focused_row(results, selection, list_ref);
+                menu.open_at_focused_row(results, selection, viewport);
             }
             "F10" if event.shift_key() => {
                 event.prevent_default();
-                menu.open_at_focused_row(results, selection, list_ref);
+                menu.open_at_focused_row(results, selection, viewport);
             }
             "Escape" => {
                 if context_menu.get_untracked().is_some() {
@@ -214,7 +213,10 @@ pub fn App() -> impl IntoView {
             class="app-shell"
             tabindex="0"
             on:keydown=on_keydown
-            on:click=move |_| menu.close()
+            on:click=move |_| {
+                menu.close();
+                view_menu_open.set(false);
+            }
             on:pointermove=move |event| columns.update_resize(event)
             on:pointerup=move |event| columns.finish_resize(event)
             on:pointercancel=move |event| columns.finish_resize(event)
@@ -264,6 +266,7 @@ pub fn App() -> impl IntoView {
                 }>{icons::folder_open()}<span>"Show in Explorer"</span></button>
                 <span class="command-separator"></span>
                 <button class="command-button danger-hover" title="Move to Recycle Bin" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| files.begin_trash(selection, results)>{icons::trash()}<span>"Delete"</span></button>
+                <ViewSwitcher viewport open=view_menu_open />
             </section>
 
             <div class="workspace">
@@ -293,7 +296,9 @@ pub fn App() -> impl IntoView {
 
                 <section
                     class="results-panel"
+                    class:icon-view=move || viewport.mode.get().is_grid()
                     class:resizing-columns=move || columns.is_resizing()
+                    data-view-mode=move || viewport.mode.get().key()
                     style=move || columns.layout_style(viewport.grid_width.get())
                 >
                     <ColumnHeaders columns sort />
@@ -303,17 +308,35 @@ pub fn App() -> impl IntoView {
                         node_ref=list_ref
                         tabindex="0"
                         role="grid"
-                        aria-label="Search results"
+                        aria-label=move || if viewport.mode.get().is_grid() {
+                            "Search results in icon view"
+                        } else {
+                            "Search results"
+                        }
+                        aria-colcount=move || if viewport.mode.get().is_grid() {
+                            viewport.columns.get()
+                        } else {
+                            4
+                        }
+                        aria-rowcount=move || viewport.row_count(total.get())
                         on:scroll=on_scroll
                         on:click=move |_| {
                             selection.clear();
                             menu.close();
                         }
                     >
-                        <div class="virtual-canvas" style:height=move || format!("{}px", total.get() as f64 * RESULT_ROW_HEIGHT)>
+                        <div
+                            class="virtual-canvas"
+                            class:icon-virtual-canvas=move || viewport.mode.get().is_grid()
+                            role="presentation"
+                            style:height=move || format!("{}px", viewport.canvas_height(total.get()))
+                        >
                             {move || {
                                 let start = visible_start.get();
                                 let end = visible_end.get();
+                                let mode = viewport.mode.get();
+                                let columns = viewport.columns.get();
+                                let _width = viewport.grid_width.get();
                                 (start..end)
                                     .map(|index| {
                                         let maybe_item = results.item_at(index);
@@ -321,51 +344,138 @@ pub fn App() -> impl IntoView {
                                             Some(item) => {
                                                 let item_for_double = item.clone();
                                                 let item_for_context = item.clone();
-                                                view! {
-                                                    <div
-                                                        class="result-row"
-                                                        class:selected=move || selected.with(|selection| selection.contains(index))
-                                                        class:focused=move || focused_index.get() == Some(index)
-                                                        style:transform=format!("translateY({}px)", index as f64 * RESULT_ROW_HEIGHT)
-                                                        on:click=move |event: MouseEvent| {
-                                                            event.stop_propagation();
-                                                            selection.select_row(index, selection_modifiers(&event));
-                                                            if let Some(list) = list_ref.get() { let _ = list.focus(); }
-                                                            menu.close();
-                                                        }
-                                                        on:dblclick=move |_| {
-                                                            files.open(item_for_double.full_path.clone());
-                                                        }
-                                                        on:contextmenu=move |event: MouseEvent| {
-                                                            event.prevent_default();
-                                                            event.stop_propagation();
-                                                            menu.open_at_pointer(
-                                                                index,
-                                                                item_for_context.clone(),
-                                                                event.client_x(),
-                                                                event.client_y(),
-                                                                selection,
-                                                            );
-                                                        }
-                                                    >
-                                                        <div class="cell col-name">
-                                                            <FileIcon path=item.full_path.clone() />
-                                                            <span class="file-name" title=item.name.clone()>{item.name.clone()}</span>
+                                                let item_style = viewport.item_style(index);
+                                                if mode == ViewMode::Details {
+                                                    view! {
+                                                        <div
+                                                            class="result-row"
+                                                            data-full-path=item.full_path.clone()
+                                                            class:selected=move || selected.with(|selection| selection.contains(index))
+                                                            class:focused=move || focused_index.get() == Some(index)
+                                                            style=item_style
+                                                            role="row"
+                                                            aria-rowindex=index + 1
+                                                            aria-selected=move || selected.with(|selection| selection.contains(index))
+                                                            on:click=move |event: MouseEvent| {
+                                                                event.stop_propagation();
+                                                                selection.select_row(index, selection_modifiers(&event));
+                                                                if let Some(list) = list_ref.get() { let _ = list.focus(); }
+                                                                menu.close();
+                                                            }
+                                                            on:dblclick=move |_| files.open(item_for_double.full_path.clone())
+                                                            on:contextmenu=move |event: MouseEvent| {
+                                                                event.prevent_default();
+                                                                event.stop_propagation();
+                                                                menu.open_at_pointer(
+                                                                    index,
+                                                                    item_for_context.clone(),
+                                                                    event.client_x(),
+                                                                    event.client_y(),
+                                                                    selection,
+                                                                );
+                                                            }
+                                                        >
+                                                            <div class="cell col-name" role="gridcell">
+                                                                <FileIcon path=item.full_path.clone() />
+                                                                <span class="file-name" title=item.name.clone()>{item.name.clone()}</span>
+                                                            </div>
+                                                            <div class="cell col-path" role="gridcell" title=item.parent_path.clone()>{item.parent_path.clone()}</div>
+                                                            <div class="cell col-size" role="gridcell">{formatting::file_size(item.size, item.is_dir)}</div>
+                                                            <div class="cell col-date" role="gridcell">{formatting::modified_date(item.modified_unix)}</div>
                                                         </div>
-                                                        <div class="cell col-path" title=item.parent_path.clone()>{item.parent_path.clone()}</div>
-                                                        <div class="cell col-size">{formatting::file_size(item.size, item.is_dir)}</div>
-                                                        <div class="cell col-date">{formatting::modified_date(item.modified_unix)}</div>
-                                                    </div>
-                                                }.into_any()
+                                                    }.into_any()
+                                                } else {
+                                                    let metadata = if mode == ViewMode::Small {
+                                                        item.parent_path.clone()
+                                                    } else {
+                                                        [
+                                                            formatting::file_size(item.size, item.is_dir),
+                                                            formatting::modified_date(item.modified_unix),
+                                                        ]
+                                                            .into_iter()
+                                                            .filter(|value| !value.is_empty())
+                                                            .collect::<Vec<_>>()
+                                                            .join(" · ")
+                                                    };
+                                                    let title = if item.parent_path.is_empty() {
+                                                        item.name.clone()
+                                                    } else {
+                                                        format!("{}\n{}", item.name, item.parent_path)
+                                                    };
+                                                    let aria_label = if item.parent_path.is_empty() {
+                                                        item.name.clone()
+                                                    } else {
+                                                        format!("{}, {}", item.name, item.parent_path)
+                                                    };
+                                                    view! {
+                                                        <div
+                                                            class=format!("icon-result icon-result-{}", mode.key())
+                                                            class:selected=move || selected.with(|selection| selection.contains(index))
+                                                            class:focused=move || focused_index.get() == Some(index)
+                                                            style=item_style
+                                                            role="gridcell"
+                                                            aria-rowindex=index / columns + 1
+                                                            aria-colindex=index % columns + 1
+                                                            aria-selected=move || selected.with(|selection| selection.contains(index))
+                                                            aria-label=aria_label
+                                                            title=title
+                                                            on:click=move |event: MouseEvent| {
+                                                                event.stop_propagation();
+                                                                selection.select_row(index, selection_modifiers(&event));
+                                                                if let Some(list) = list_ref.get() { let _ = list.focus(); }
+                                                                menu.close();
+                                                            }
+                                                            on:dblclick=move |_| files.open(item_for_double.full_path.clone())
+                                                            on:contextmenu=move |event: MouseEvent| {
+                                                                event.prevent_default();
+                                                                event.stop_propagation();
+                                                                menu.open_at_pointer(
+                                                                    index,
+                                                                    item_for_context.clone(),
+                                                                    event.client_x(),
+                                                                    event.client_y(),
+                                                                    selection,
+                                                                );
+                                                            }
+                                                        >
+                                                            {match mode.visual_size() {
+                                                                Some(size) => view! {
+                                                                    <FileVisual path=item.full_path.clone() size />
+                                                                }.into_any(),
+                                                                None => view! {
+                                                                    <span class="icon-result-visual">
+                                                                        <FileIcon path=item.full_path.clone() />
+                                                                    </span>
+                                                                }.into_any(),
+                                                            }}
+                                                            <div class="icon-result-text">
+                                                                <span class="icon-result-name">{item.name.clone()}</span>
+                                                                <span class="icon-result-metadata">{metadata}</span>
+                                                            </div>
+                                                        </div>
+                                                    }.into_any()
+                                                }
                                             }
+                                            None if mode == ViewMode::Details => view! {
+                                                    <div class="result-row skeleton-row" style=viewport.item_style(index) role="row" aria-rowindex=index + 1>
+                                                        <div class="cell col-name" role="gridcell"><span class="skeleton icon-skeleton"></span><span class="skeleton text-skeleton"></span></div>
+                                                        <div class="cell col-path" role="gridcell"><span class="skeleton path-skeleton"></span></div>
+                                                        <div class="cell col-size" role="gridcell"><span class="skeleton size-skeleton"></span></div>
+                                                        <div class="cell col-date" role="gridcell"><span class="skeleton date-skeleton"></span></div>
+                                                    </div>
+                                                }.into_any(),
                                             None => view! {
-                                                <div class="result-row skeleton-row" style:transform=format!("translateY({}px)", index as f64 * RESULT_ROW_HEIGHT)>
-                                                    <div class="cell col-name"><span class="skeleton icon-skeleton"></span><span class="skeleton text-skeleton"></span></div>
-                                                    <div class="cell col-path"><span class="skeleton path-skeleton"></span></div>
-                                                    <div class="cell col-size"><span class="skeleton size-skeleton"></span></div>
-                                                    <div class="cell col-date"><span class="skeleton date-skeleton"></span></div>
-                                                </div>
-                                            }.into_any(),
+                                                    <div
+                                                        class=format!("icon-result icon-result-{} skeleton-tile", mode.key())
+                                                        style=viewport.item_style(index)
+                                                        role="gridcell"
+                                                        aria-rowindex=index / columns + 1
+                                                        aria-colindex=index % columns + 1
+                                                    >
+                                                        <span class="icon-tile-skeleton icon-tile-skeleton-icon"></span>
+                                                        <span class="icon-tile-skeleton icon-tile-skeleton-label"></span>
+                                                    </div>
+                                                }.into_any(),
                                         }
                                     })
                                     .collect_view()

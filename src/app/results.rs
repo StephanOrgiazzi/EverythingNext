@@ -1,4 +1,5 @@
 use super::search::{RESULT_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN};
+use super::view_modes::{ViewMode, GRID_GAP, GRID_PADDING};
 use crate::backend;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -6,12 +7,16 @@ use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlDivElement;
 
+const VIEW_MODE_STORAGE_KEY: &str = "everything-modern-view-mode";
+
 #[derive(Clone, Copy)]
 pub(super) struct ResultViewport {
     pub list_ref: NodeRef<leptos::html::Div>,
     pub scroll_top: RwSignal<f64>,
     pub height: RwSignal<f64>,
     pub grid_width: RwSignal<f64>,
+    pub mode: RwSignal<ViewMode>,
+    pub columns: RwSignal<u32>,
 }
 
 impl ResultViewport {
@@ -21,6 +26,8 @@ impl ResultViewport {
             scroll_top: RwSignal::new(0.0),
             height: RwSignal::new(640.0),
             grid_width: RwSignal::new(0.0),
+            mode: RwSignal::new(load_view_mode()),
+            columns: RwSignal::new(1),
         }
     }
 
@@ -35,15 +42,23 @@ impl ResultViewport {
 
     pub fn visible_start(self) -> Memo<u32> {
         Memo::new(move |_| {
-            ((self.scroll_top.get() / RESULT_ROW_HEIGHT).floor() as u32)
+            let mode = self.mode.get();
+            let columns = self.columns.get();
+            let first_row = (self.scroll_top.get() / mode.item_height()).floor() as u32;
+            first_row
                 .saturating_sub(VIRTUALIZATION_OVERSCAN)
+                .saturating_mul(columns)
         })
     }
 
     pub fn visible_end(self, start: Memo<u32>, total: RwSignal<u32>) -> Memo<u32> {
         Memo::new(move |_| {
-            let count =
-                (self.height.get() / RESULT_ROW_HEIGHT).ceil() as u32 + VIRTUALIZATION_OVERSCAN * 2;
+            let mode = self.mode.get();
+            let columns = self.columns.get();
+            let visible_rows = (self.height.get() / mode.item_height()).ceil() as u32;
+            let count = visible_rows
+                .saturating_add(VIRTUALIZATION_OVERSCAN * 2)
+                .saturating_mul(columns);
             start.get().saturating_add(count).min(total.get())
         })
     }
@@ -57,6 +72,7 @@ impl ResultViewport {
         };
         self.scroll_top.set(element.scroll_top() as f64);
         self.height.set(element.client_height() as f64);
+        self.update_width_and_columns(&element);
     }
 
     pub fn reset_scroll(self) {
@@ -71,14 +87,99 @@ impl ResultViewport {
         let Some(list) = self.list_ref.get() else {
             return;
         };
-        let top = index as f64 * RESULT_ROW_HEIGHT;
-        let bottom = top + RESULT_ROW_HEIGHT;
+        let mode = self.mode.get_untracked();
+        let columns = self.columns.get_untracked().max(1);
+        let visual_row = index / columns;
+        let top = if mode.is_grid() {
+            GRID_PADDING + visual_row as f64 * mode.item_height()
+        } else {
+            index as f64 * RESULT_ROW_HEIGHT
+        };
+        let bottom = top + mode.item_height();
         let current_top = list.scroll_top() as f64;
         let current_bottom = current_top + list.client_height() as f64;
         if top < current_top {
-            list.set_scroll_top(top as i32);
+            self.set_scroll_top(top.max(0.0));
         } else if bottom > current_bottom {
-            list.set_scroll_top((bottom - list.client_height() as f64) as i32);
+            self.set_scroll_top(bottom - list.client_height() as f64);
+        }
+    }
+
+    pub fn set_mode(self, mode: ViewMode) {
+        if mode == self.mode.get_untracked() {
+            return;
+        }
+        let anchor = self.first_visible_index();
+        self.mode.set(mode);
+        let width = self
+            .list_ref
+            .get()
+            .map(|list| list.client_width() as f64)
+            .unwrap_or_else(|| self.grid_width.get_untracked());
+        let columns = calculate_columns(mode, width);
+        self.columns.set(columns);
+        let target = if mode.is_grid() {
+            (anchor / columns) as f64 * mode.item_height()
+        } else {
+            anchor as f64 * RESULT_ROW_HEIGHT
+        };
+        self.set_scroll_top(target);
+        store_view_mode(mode);
+    }
+
+    pub fn canvas_height(self, total: u32) -> f64 {
+        let mode = self.mode.get();
+        if !mode.is_grid() {
+            return total as f64 * RESULT_ROW_HEIGHT;
+        }
+        let rows = total.div_ceil(self.columns.get().max(1));
+        GRID_PADDING * 2.0 + rows as f64 * mode.item_height()
+    }
+
+    pub fn item_style(self, index: u32) -> String {
+        let mode = self.mode.get_untracked();
+        if !mode.is_grid() {
+            return format!(
+                "transform: translateY({}px)",
+                index as f64 * RESULT_ROW_HEIGHT
+            );
+        }
+
+        let columns = self.columns.get_untracked().max(1);
+        let width = self.grid_width.get_untracked();
+        let cell_width = ((width - GRID_PADDING * 2.0 - GRID_GAP * (columns - 1) as f64)
+            / columns as f64)
+            .max(mode.min_width());
+        let column = index % columns;
+        let row = index / columns;
+        let x = GRID_PADDING + column as f64 * (cell_width + GRID_GAP);
+        let y = GRID_PADDING + row as f64 * mode.item_height();
+        format!(
+            "width: {cell_width}px; height: {}px; transform: translate3d({x}px, {y}px, 0)",
+            mode.item_height() - GRID_GAP,
+        )
+    }
+
+    pub fn row_count(self, total: u32) -> u32 {
+        total.div_ceil(self.columns.get().max(1))
+    }
+
+    pub fn page_step(self) -> i32 {
+        let mode = self.mode.get_untracked();
+        let rows = (self.height.get_untracked() / mode.item_height())
+            .floor()
+            .max(1.0) as i32;
+        rows * self.columns.get_untracked().max(1) as i32
+    }
+
+    pub fn navigation_delta(self, key: &str) -> Option<i32> {
+        let columns = self.columns.get_untracked().max(1) as i32;
+        match (self.mode.get_untracked(), key) {
+            (_, "ArrowDown") => Some(columns),
+            (_, "ArrowUp") => Some(-columns),
+            (mode, "ArrowRight") if mode.is_grid() => Some(1),
+            (mode, "ArrowLeft") if mode.is_grid() => Some(-1),
+            _ => None,
         }
     }
 
@@ -90,15 +191,80 @@ impl ResultViewport {
         if (height - self.height.get_untracked()).abs() > 0.5 {
             self.height.set(height);
         }
-        let width = list
-            .query_selector(".virtual-canvas")
-            .ok()
-            .flatten()
-            .map(|canvas| canvas.get_bounding_client_rect().width())
-            .unwrap_or_else(|| list.client_width() as f64);
+        self.update_width_and_columns(&list);
+    }
+
+    fn update_width_and_columns(self, list: &HtmlDivElement) {
+        let mode = self.mode.get_untracked();
+        let width = if mode.is_grid() {
+            list.client_width() as f64
+        } else {
+            list.query_selector(".virtual-canvas")
+                .ok()
+                .flatten()
+                .map(|canvas| canvas.get_bounding_client_rect().width())
+                .unwrap_or_else(|| list.client_width() as f64)
+        };
         if (width - self.grid_width.get_untracked()).abs() > 0.5 {
             self.grid_width.set(width);
         }
+
+        let next_columns = calculate_columns(mode, list.client_width() as f64);
+        let current_columns = self.columns.get_untracked().max(1);
+        if next_columns != current_columns {
+            let anchor = self.first_visible_index();
+            self.columns.set(next_columns);
+            if mode.is_grid() {
+                self.set_scroll_top((anchor / next_columns) as f64 * mode.item_height());
+            }
+        }
+    }
+
+    fn first_visible_index(self) -> u32 {
+        let mode = self.mode.get_untracked();
+        if mode.is_grid() {
+            (self.scroll_top.get_untracked() / mode.item_height()).floor() as u32
+                * self.columns.get_untracked().max(1)
+        } else {
+            (self.scroll_top.get_untracked() / RESULT_ROW_HEIGHT).floor() as u32
+        }
+    }
+
+    fn set_scroll_top(self, top: f64) {
+        let top = top.max(0.0);
+        self.scroll_top.set(top);
+        if let Some(list) = self.list_ref.get() {
+            list.set_scroll_top(top as i32);
+        }
+    }
+}
+
+fn calculate_columns(mode: ViewMode, width: f64) -> u32 {
+    if !mode.is_grid() {
+        return 1;
+    }
+    let available = (width - GRID_PADDING * 2.0).max(mode.min_width());
+    (((available + GRID_GAP) / (mode.min_width() + GRID_GAP)).floor() as u32)
+        .clamp(1, mode.max_columns())
+}
+
+fn load_view_mode() -> ViewMode {
+    let stored = web_sys::window()
+        .and_then(|window| window.local_storage().ok().flatten())
+        .and_then(|storage| storage.get_item(VIEW_MODE_STORAGE_KEY).ok().flatten());
+    match stored.as_deref() {
+        Some("small") => ViewMode::Small,
+        Some("medium") => ViewMode::Medium,
+        Some("large") => ViewMode::Large,
+        _ => ViewMode::Details,
+    }
+}
+
+fn store_view_mode(mode: ViewMode) {
+    if let Some(storage) =
+        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+    {
+        let _ = storage.set_item(VIEW_MODE_STORAGE_KEY, mode.key());
     }
 }
 
@@ -115,6 +281,34 @@ pub(super) fn FileIcon(path: String) -> impl IntoView {
     view! {
         <span class="file-icon">
             {move || source.get().map(|source| view! { <img src=source alt="" /> })}
+        </span>
+    }
+}
+
+#[component]
+pub(super) fn FileVisual(path: String, size: u32) -> impl IntoView {
+    let source = RwSignal::new(None::<String>);
+    let visual_path = path.clone();
+    Effect::new(move |_| {
+        let path = visual_path.clone();
+        let pixel_ratio = web_sys::window()
+            .map(|window| window.device_pixel_ratio())
+            .unwrap_or(1.0);
+        let pixel_size = ((size as f64 * pixel_ratio).ceil() as u32).clamp(32, 256);
+        spawn_local(async move {
+            source.set(backend::visual(&path, pixel_size).await);
+        });
+    });
+
+    view! {
+        <span class="icon-result-visual">
+            {move || match source.get() {
+                Some(source) => view! {
+                    <img class="file-visual-image" src=source alt="" />
+                }
+                    .into_any(),
+                None => view! { <FileIcon path=path.clone() /> }.into_any(),
+            }}
         </span>
     }
 }

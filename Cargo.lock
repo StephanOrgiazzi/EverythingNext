@@ -5744,6 +5744,7 @@ dependencies = [
  "parking_lot",
  "thiserror 2.0.19",
  "trash",
+ "windows 0.62.2",
 ]
 
 [[package]]

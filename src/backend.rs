@@ -39,6 +39,7 @@ mod command {
     pub const BEGIN_SEARCH_GENERATION: &str = "begin_search_generation";
     pub const SEARCH: &str = "search_everything";
     pub const FILE_ICON: &str = "get_file_icon";
+    pub const FILE_VISUAL: &str = "get_file_visual";
     pub const OPEN_PATH: &str = "open_path";
     pub const REVEAL_PATH: &str = "reveal_path";
     pub const RENAME_PATH: &str = "rename_path";
@@ -62,6 +63,12 @@ struct RequestArgs<T> {
 #[derive(Serialize)]
 struct PathArgs<'a> {
     path: &'a str,
+}
+
+#[derive(Serialize)]
+struct VisualArgs<'a> {
+    path: &'a str,
+    size: u32,
 }
 
 #[derive(Serialize)]
@@ -125,6 +132,13 @@ pub async fn search(request: QueryRequest) -> Result<SearchPage, String> {
 
 pub async fn icon(path: &str) -> Option<String> {
     invoke::<Option<String>, _>(command::FILE_ICON, &PathArgs { path })
+        .await
+        .ok()
+        .flatten()
+}
+
+pub async fn visual(path: &str, size: u32) -> Option<String> {
+    invoke::<Option<String>, _>(command::FILE_VISUAL, &VisualArgs { path, size })
         .await
         .ok()
         .flatten()

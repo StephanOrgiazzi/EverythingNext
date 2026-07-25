@@ -1,5 +1,7 @@
+use super::results::ResultViewport;
 use super::search::{SearchResults, RESULT_ROW_HEIGHT};
 use super::selection::ResultSelection;
+use super::view_modes::{GRID_GAP, GRID_PADDING};
 use everything_core::SearchResult;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -49,7 +51,7 @@ impl ResultContextMenu {
         self,
         results: SearchResults,
         selection: ResultSelection,
-        list_ref: NodeRef<leptos::html::Div>,
+        viewport: ResultViewport,
     ) {
         let Some(index) = selection.focused_index.get_untracked() else {
             return;
@@ -58,7 +60,7 @@ impl ResultContextMenu {
             return;
         };
         selection.select_context_item(index);
-        let (x, y) = keyboard_position(index, list_ref);
+        let (x, y) = keyboard_position(index, viewport);
         self.state.set(Some(ContextMenuState { x, y, item }));
     }
 }
@@ -75,14 +77,32 @@ pub(super) fn event_target_is_interactive(event: &KeyboardEvent) -> bool {
         })
 }
 
-fn keyboard_position(index: u32, list_ref: NodeRef<leptos::html::Div>) -> (i32, i32) {
-    let Some(list) = list_ref.get() else {
+fn keyboard_position(index: u32, viewport: ResultViewport) -> (i32, i32) {
+    let Some(list) = viewport.list_ref.get() else {
         return clamp_to_viewport(32, 96);
     };
     let rect = list.get_bounding_client_rect();
-    let row_y = rect.top() + index as f64 * RESULT_ROW_HEIGHT - list.scroll_top() as f64
-        + RESULT_ROW_HEIGHT;
-    clamp_to_viewport((rect.left() + 180.0) as i32, row_y as i32)
+    let mode = viewport.mode.get_untracked();
+    if !mode.is_grid() {
+        let row_y = rect.top() + index as f64 * RESULT_ROW_HEIGHT - list.scroll_top() as f64
+            + RESULT_ROW_HEIGHT;
+        return clamp_to_viewport((rect.left() + 180.0) as i32, row_y as i32);
+    }
+
+    let columns = viewport.columns.get_untracked().max(1);
+    let width = viewport.grid_width.get_untracked();
+    let cell_width = ((width - GRID_PADDING * 2.0 - GRID_GAP * (columns - 1) as f64)
+        / columns as f64)
+        .max(120.0);
+    let column = index % columns;
+    let row = index / columns;
+    let x = rect.left()
+        + GRID_PADDING
+        + column as f64 * (cell_width + GRID_GAP)
+        + cell_width.min(180.0);
+    let y = rect.top() + GRID_PADDING + (row + 1) as f64 * mode.item_height()
+        - list.scroll_top() as f64;
+    clamp_to_viewport(x as i32, y as i32)
 }
 
 fn clamp_to_viewport(x: i32, y: i32) -> (i32, i32) {

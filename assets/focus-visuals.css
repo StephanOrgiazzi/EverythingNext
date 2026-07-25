@@ -27,8 +27,7 @@
   box-shadow: none;
 }
 
-.results-scroll:focus-visible,
-.icon-results-scroll:focus-visible {
+.results-scroll:focus-visible {
   box-shadow: none;
 }
 
