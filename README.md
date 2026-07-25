@@ -1,11 +1,12 @@
 # Everything Modern
 
-Client Windows moderne pour **Everything 1.5**, construit en Rust avec **Tauri 2 + Leptos**. Il interroge directement l’index existant via **Everything SDK3 / IPC3** et ne réindexe aucun fichier.
+Client Windows moderne pour **Everything 1.5**, construit en Rust avec **Tauri 2 + Leptos**. L’installateur embarque Everything **1.5.0.1418b x64** et **Everything SDK3 3.0.0.9** : aucune installation préalable d’Everything n’est nécessaire.
 
 ## Fonctionnalités du MVP
 
 - recherche Everything avec syntaxe native et debounce de 55 ms ;
 - connexion SDK3 explicite par named pipe, avec client, état de recherche et listes de résultats dédiés ;
+- instance privée nommée `EverythingModern`, indépendante d’une éventuelle instance Everything classique ;
 - invalidation logique des anciennes générations côté frontend **et backend Rust** ;
 - pagination SDK3 par viewport, par lots de 256 résultats, et cache glissant de huit pages ;
 - liste virtualisée, tri nom/chemin/taille/date et icônes Shell progressives avec cache hybride par extension ou chemin sensible ;
@@ -14,13 +15,26 @@ Client Windows moderne pour **Everything 1.5**, construit en Rust avec **Tauri 2
 - dialogues applicatifs de renommage et de confirmation ;
 - thème Windows clair/sombre et barre de titre personnalisée ;
 - restauration automatique de la taille et de la position de fenêtre ;
-- chargement explicite de `Everything3_x64.dll` depuis les ressources de l’application installée ;
+- moteur et SDK3 officiels vérifiés puis embarqués dans l’installateur NSIS ;
 - métrique visible `UI x ms` mesurant réponse IPC → prochaine passe de rendu.
 
-## Prérequis
+## Installation utilisateur
+
+Téléchargez et exécutez l’installateur NSIS. Il demande les droits administrateur une fois afin d’installer le service d’indexation privé de l’instance `EverythingModern`.
+
+Le moteur embarqué :
+
+- fonctionne sans installation séparée d’Everything ;
+- n’affiche ni fenêtre ni icône de notification ;
+- stocke sa configuration et sa base dans `%LOCALAPPDATA%\EverythingModern\Engine` ;
+- est lancé avec l’application et arrêté lorsque l’application quitte réellement ;
+- utilise une instance, un pipe IPC3 et un service distincts de l’Everything classique.
+
+Everything classique peut donc rester installé et lancé simultanément. Les deux applications conservent leurs propres processus, bases et réglages.
+
+## Prérequis de développement
 
 - Windows 11 x64 ;
-- **Everything 1.5 x64** lancé en arrière-plan ;
 - Rust stable **MSVC** avec la cible `wasm32-unknown-unknown` ;
 - Visual Studio 2022 Build Tools, charge de travail « Développement Desktop en C++ » et Windows 10/11 SDK ;
 - WebView2, inclus par défaut dans Windows 11.
@@ -36,7 +50,22 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\dev.ps1
 ```
 
-Le script `setup.ps1` installe la cible WASM et les outils manquants, génère `Cargo.lock`, applique `rustfmt`, puis télécharge **Everything SDK3 3.0.0.9** depuis voidtools. La DLL x64 est copiée dans `src-tauri` et incluse comme ressource Tauri dans les bundles installables.
+`setup.ps1` installe les outils manquants puis télécharge :
+
+- Everything SDK3 **3.0.0.9** dans `src-tauri\Everything3_x64.dll` ;
+- Everything **1.5.0.1418b x64 portable** dans `src-tauri\engine\Everything.exe`.
+
+Le SDK3 est vérifié avec des empreintes SHA-256 épinglées. Le runtime est vérifié avec le manifeste SHA-256 officiel de la version, son architecture PE x64 et sa signature Authenticode. Les binaires restent ignorés par Git et sont ajoutés au bundle Tauri pendant le build.
+
+En développement, des binaires locaux peuvent être fournis explicitement :
+
+```powershell
+$env:EVERYTHING_ENGINE_EXE = "C:\chemin\Everything.exe"
+$env:EVERYTHING_SDK3_DLL = "C:\chemin\Everything3_x64.dll"
+$env:EVERYTHING_INSTANCE = "EverythingModernDev"
+```
+
+Sans override, le runtime embarqué utilise l’instance `EverythingModern`.
 
 ## Build installable
 
@@ -44,11 +73,11 @@ Le script `setup.ps1` installe la cible WASM et les outils manquants, génère `
 .\scripts\build.ps1
 ```
 
-L’installateur NSIS est produit dans `target\release\bundle\nsis`.
+L’installateur NSIS autonome est produit dans `target\release\bundle\nsis`. Le build échoue si le SDK3, le moteur ou les licences tierces ne sont pas présents.
 
 ## Benchmark du bridge Everything
 
-Everything 1.5 doit être lancé :
+Lancez Everything Modern une première fois, puis :
 
 ```powershell
 .\scripts\benchmark.ps1 -Query "*.pdf" -Iterations 40
@@ -62,18 +91,9 @@ Le script mesure les latences p50, p95 et maximale d’une page de 256 résultat
 Everything Modern
 ├── src/                       # UI Leptos CSR
 ├── src-tauri/                 # orchestration Tauri et commandes IPC
-├── crates/everything-core/    # bridge Everything SDK3 indépendant de Tauri
+├── crates/everything-core/    # bridge SDK3 et gestion du moteur privé
 └── crates/windows-shell/      # icônes et opérations fichiers Windows
 ```
-
-Le bridge se connecte par défaut à l’instance principale d’Everything 1.5. Pour cibler une instance nommée ou charger une autre copie de la DLL SDK3 :
-
-```powershell
-$env:EVERYTHING_INSTANCE = "travail"
-$env:EVERYTHING_SDK3_DLL = "C:\chemin\Everything3_x64.dll"
-```
-
-Une valeur vide de `EVERYTHING_INSTANCE` cible l’instance principale.
 
 ## Raccourcis
 
@@ -92,13 +112,15 @@ Une valeur vide de `EVERYTHING_INSTANCE` cible l’instance principale.
 | `Ctrl+A` | Sélectionner tous les résultats, sans les charger en mémoire |
 | `Échap` | Fermer le menu ou désélectionner |
 
-## Corrections après audit
-
-Le détail des corrections est disponible dans [`docs/FIXES.md`](docs/FIXES.md). L’état exact des validations est consigné dans [`docs/VALIDATION-STATUS.md`](docs/VALIDATION-STATUS.md).
-
 ## Validation
 
-La CI Windows installe la DLL SDK3, exécute les tests et checks natifs/WASM, puis construit le frontend Trunk. La génération de l’installateur NSIS et le smoke test fonctionnel restent à exécuter sur Windows avec Everything 1.5 lancé avant publication.
+La CI Windows télécharge et vérifie le SDK3 et le runtime épinglés, exécute les tests et checks natifs/WASM, construit le frontend Trunk, compile l’installateur NSIS puis le publie comme artefact.
+
+Avant publication, un smoke test doit encore vérifier sur une VM Windows propre : installation et UAC, création du service privé, première indexation, coexistence avec Everything classique, redémarrage Windows et désinstallation complète.
+
+## Licences tierces
+
+Everything est redistribué selon sa licence MIT. Sa notice et celle de PCRE sont incluses dans `src-tauri/engine/THIRD-PARTY-LICENSES.txt` et dans l’installateur.
 
 ## Sécurité des opérations destructrices
 
