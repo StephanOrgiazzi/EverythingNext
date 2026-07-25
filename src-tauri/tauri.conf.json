@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.everythingmodern.app",
   "build": {
-    "beforeDevCommand": "trunk serve",
+    "beforeDevCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icons.ps1 && trunk serve",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build --release",
+    "beforeBuildCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icons.ps1 && trunk build --release",
     "frontendDist": "../dist"
   },
   "app": {
