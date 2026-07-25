@@ -27,6 +27,7 @@ type SetSearchTextW = unsafe extern "system" fn(*mut c_void, *const u16) -> i32;
 type AddSearchSort = unsafe extern "system" fn(*mut c_void, u32, i32) -> i32;
 type AddSearchPropertyRequest = unsafe extern "system" fn(*mut c_void, u32) -> i32;
 type SetSearchViewport = unsafe extern "system" fn(*mut c_void, usize) -> i32;
+type GetSearchViewport = unsafe extern "system" fn(*mut c_void) -> usize;
 type Search = unsafe extern "system" fn(*mut c_void, *mut c_void) -> *mut c_void;
 type DestroyResultList = unsafe extern "system" fn(*mut c_void) -> i32;
 type GetResultListCount = unsafe extern "system" fn(*const c_void) -> usize;
@@ -53,6 +54,8 @@ pub struct EverythingSdk {
     add_search_property_request: AddSearchPropertyRequest,
     set_search_viewport_offset: SetSearchViewport,
     set_search_viewport_count: SetSearchViewport,
+    get_search_viewport_offset: GetSearchViewport,
+    get_search_viewport_count: GetSearchViewport,
     search: Search,
     destroy_result_list: DestroyResultList,
     get_result_list_count: GetResultListCount,
@@ -109,6 +112,14 @@ impl EverythingSdk {
         );
         let set_search_viewport_count =
             symbol!("Everything3_SetSearchViewportCount", SetSearchViewport);
+        let get_search_viewport_offset = symbol!(
+            "Everything3_GetSearchViewportOffset",
+            GetSearchViewport
+        );
+        let get_search_viewport_count = symbol!(
+            "Everything3_GetSearchViewportCount",
+            GetSearchViewport
+        );
         let search = symbol!("Everything3_Search", Search);
         let destroy_result_list = symbol!("Everything3_DestroyResultList", DestroyResultList);
         let get_result_list_count =
@@ -174,6 +185,8 @@ impl EverythingSdk {
             add_search_property_request,
             set_search_viewport_offset,
             set_search_viewport_count,
+            get_search_viewport_offset,
+            get_search_viewport_count,
             search,
             destroy_result_list,
             get_result_list_count,
@@ -237,20 +250,19 @@ impl EverythingSdk {
                 },
             )?;
         }
-        self.check_call(
+        self.set_search_viewport(
             "Everything3_SetSearchViewportOffset",
-            unsafe {
-                (self.set_search_viewport_offset)(search_state.pointer, request.offset as usize)
-            },
+            self.set_search_viewport_offset,
+            self.get_search_viewport_offset,
+            search_state.pointer,
+            request.offset as usize,
         )?;
-        self.check_call(
+        self.set_search_viewport(
             "Everything3_SetSearchViewportCount",
-            unsafe {
-                (self.set_search_viewport_count)(
-                    search_state.pointer,
-                    request.limit.clamp(1, 4096) as usize,
-                )
-            },
+            self.set_search_viewport_count,
+            self.get_search_viewport_count,
+            search_state.pointer,
+            request.limit.clamp(1, 4096) as usize,
         )?;
 
         let result_list_ptr = unsafe { (self.search)(self.client, search_state.pointer) };
@@ -393,6 +405,25 @@ impl EverythingSdk {
         }
         buffer.truncate(written);
         Ok(String::from_utf16_lossy(&buffer))
+    }
+
+    fn set_search_viewport(
+        &self,
+        operation: &'static str,
+        setter: SetSearchViewport,
+        getter: GetSearchViewport,
+        search_state: *mut c_void,
+        value: usize,
+    ) -> Result<(), EngineError> {
+        // SDK3 3.0.0.9 applies these values but mistakenly always returns FALSE.
+        // Read the value back instead of trusting the broken return value.
+        unsafe { setter(search_state, value) };
+        let actual = unsafe { getter(search_state) };
+        if actual == value {
+            Ok(())
+        } else {
+            Err(self.call_error(operation))
+        }
     }
 
     fn check_call(&self, operation: &'static str, succeeded: i32) -> Result<(), EngineError> {
