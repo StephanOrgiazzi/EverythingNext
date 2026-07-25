@@ -23,6 +23,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::all().difference(StateFlags::VISIBLE))

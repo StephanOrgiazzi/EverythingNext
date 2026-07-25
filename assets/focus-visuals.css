@@ -10,10 +10,13 @@
 .context-action:focus-visible,
 .banner-close:focus-visible,
 .view-option:focus-visible,
+.theme-option:focus-visible,
+.excluded-folders-list button:focus-visible,
 .dialog-button:not(.primary):not(.danger):focus-visible {
   background: var(--hover);
 }
 
+.excluded-folder-controls button:focus-visible,
 .dialog-button.primary:focus-visible,
 .dialog-button.danger:focus-visible {
   filter: brightness(1.12);

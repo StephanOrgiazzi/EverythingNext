@@ -1,0 +1,327 @@
+use js_sys::{Function, Reflect};
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use wasm_bindgen::{JsCast, JsValue};
+
+use crate::backend;
+
+const STORAGE_KEY: &str = "everything-modern.excluded-folders";
+
+#[derive(Clone, Copy)]
+pub struct ExcludedFoldersState {
+    pub folders: RwSignal<Vec<String>>,
+}
+
+impl ExcludedFoldersState {
+    pub fn new() -> Self {
+        Self {
+            folders: RwSignal::new(read_stored_folders()),
+        }
+    }
+
+    pub fn add(self, raw_path: &str) -> Result<(), &'static str> {
+        let path = validated_path(raw_path)?;
+        if contains_case_insensitive(&self.folders.get_untracked(), &path) {
+            return Err("This folder is already excluded.");
+        }
+
+        self.folders.update(|folders| folders.push(path));
+        write_stored_folders(&self.folders.get_untracked());
+        Ok(())
+    }
+
+    pub fn remove(self, path: &str) {
+        self.folders
+            .update(|folders| folders.retain(|folder| !folder.eq_ignore_ascii_case(path)));
+        write_stored_folders(&self.folders.get_untracked());
+    }
+}
+
+impl Default for ExcludedFoldersState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[component]
+#[allow(
+    non_snake_case,
+    reason = "Leptos components conventionally use PascalCase names"
+)]
+pub fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> impl IntoView {
+    let validation_error = RwSignal::new(None::<String>);
+    let is_picking = RwSignal::new(false);
+
+    let pick_folder = move |_| {
+        if is_picking.get_untracked() {
+            return;
+        }
+
+        is_picking.set(true);
+        validation_error.set(None);
+        spawn_local(async move {
+            match backend::pick_folder().await {
+                Ok(Some(path)) => {
+                    if let Err(message) = state.add(&path) {
+                        validation_error.set(Some(message.into()));
+                    }
+                }
+                Ok(None) => {}
+                Err(message) => validation_error.set(Some(message)),
+            }
+            is_picking.set(false);
+        });
+    };
+
+    view! {
+        <div class="excluded-folders-setting">
+            <p class="settings-description">
+                "Folders excluded here are omitted from search results."
+            </p>
+
+            <div class="excluded-folder-controls">
+                <button
+                    type="button"
+                    disabled=move || is_picking.get()
+                    aria-describedby="excluded-folder-error"
+                    on:click=pick_folder
+                >
+                    {move || if is_picking.get() { "Choosing folder…" } else { "Choose folder…" }}
+                </button>
+            </div>
+            <Show when=move || validation_error.get().is_some()>
+                <p id="excluded-folder-error" class="settings-error" role="alert">
+                    {move || validation_error.get().unwrap_or_default()}
+                </p>
+            </Show>
+
+            <Show
+                when=move || !state.folders.get().is_empty()
+                fallback=|| {
+                    view! {
+                        <p class="excluded-folders-empty">"No folders are excluded."</p>
+                    }
+                }
+            >
+                <ul class="excluded-folders-list">
+                    <For
+                        each=move || state.folders.get()
+                        key=|path| path.to_ascii_lowercase()
+                        children=move |path| {
+                            let path_to_remove = path.clone();
+                            view! {
+                                <li>
+                                    <span title=path.clone()>{path.clone()}</span>
+                                    <button
+                                        type="button"
+                                        aria-label="Remove excluded folder"
+                                        on:click=move |_| state.remove(&path_to_remove)
+                                    >
+                                        "Remove"
+                                    </button>
+                                </li>
+                            }
+                        }
+                    />
+                </ul>
+            </Show>
+        </div>
+    }
+}
+
+pub fn compose_query(raw: &str, excluded_folders: &[String]) -> String {
+    let exclusions = excluded_folders
+        .iter()
+        .map(|folder| format!(r#"!<whole:path:"{folder}"|ancestor:"{folder}">"#))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    match (raw.trim(), exclusions.is_empty()) {
+        ("", _) => exclusions,
+        (query, true) => query.to_string(),
+        (query, false) => format!("{query} {exclusions}"),
+    }
+}
+
+fn validated_path(raw_path: &str) -> Result<String, &'static str> {
+    let trimmed = raw_path.trim();
+    let unquoted = trimmed
+        .strip_prefix('"')
+        .and_then(|path| path.strip_suffix('"'))
+        .unwrap_or(trimmed);
+    let mut path = unquoted.replace('/', r"\");
+    while path.len() > 3 && path.ends_with('\\') {
+        path.pop();
+    }
+
+    if path.is_empty() {
+        return Err("Enter a folder path.");
+    }
+    if path.chars().any(|character| {
+        character.is_control() || matches!(character, '"' | '<' | '>' | '|' | '?' | '*')
+    }) {
+        return Err("The folder path contains invalid characters.");
+    }
+    if !is_absolute_windows_path(&path) {
+        return Err("Enter an absolute Windows or UNC folder path.");
+    }
+
+    Ok(path)
+}
+
+fn contains_case_insensitive(folders: &[String], candidate: &str) -> bool {
+    folders
+        .iter()
+        .any(|folder| folder.eq_ignore_ascii_case(candidate))
+}
+
+fn is_absolute_windows_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    let drive_path = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/');
+
+    drive_path || is_unc_path(path)
+}
+
+fn is_unc_path(path: &str) -> bool {
+    let remainder = path.strip_prefix(r"\\").or_else(|| path.strip_prefix("//"));
+    let Some(remainder) = remainder else {
+        return false;
+    };
+
+    let mut components = remainder.split(['\\', '/']);
+    matches!(
+        (components.next(), components.next()),
+        (Some(server), Some(share)) if !server.is_empty() && !share.is_empty()
+    )
+}
+
+fn local_storage() -> Option<JsValue> {
+    let window = web_sys::window()?;
+    let storage = Reflect::get(window.as_ref(), &JsValue::from_str("localStorage")).ok()?;
+    (!storage.is_null() && !storage.is_undefined()).then_some(storage)
+}
+
+fn read_stored_folders() -> Vec<String> {
+    let Some(storage) = local_storage() else {
+        return Vec::new();
+    };
+    let Ok(get_item) = Reflect::get(&storage, &JsValue::from_str("getItem")) else {
+        return Vec::new();
+    };
+    let Ok(get_item) = get_item.dyn_into::<Function>() else {
+        return Vec::new();
+    };
+    let Ok(value) = get_item.call1(&storage, &JsValue::from_str(STORAGE_KEY)) else {
+        return Vec::new();
+    };
+    let Some(value) = value.as_string() else {
+        return Vec::new();
+    };
+
+    let mut folders = Vec::new();
+    for path in serde_json::from_str::<Vec<String>>(&value).unwrap_or_default() {
+        let Ok(path) = validated_path(&path) else {
+            continue;
+        };
+        if !folders
+            .iter()
+            .any(|folder: &String| folder.eq_ignore_ascii_case(&path))
+        {
+            folders.push(path);
+        }
+    }
+    folders
+}
+
+fn write_stored_folders(folders: &[String]) {
+    let Some(storage) = local_storage() else {
+        return;
+    };
+    let Ok(set_item) = Reflect::get(&storage, &JsValue::from_str("setItem")) else {
+        return;
+    };
+    let Ok(set_item) = set_item.dyn_into::<Function>() else {
+        return;
+    };
+    let Ok(value) = serde_json::to_string(folders) else {
+        return;
+    };
+
+    let _ = set_item.call2(
+        &storage,
+        &JsValue::from_str(STORAGE_KEY),
+        &JsValue::from_str(&value),
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        compose_query, contains_case_insensitive, is_absolute_windows_path, validated_path,
+    };
+
+    #[test]
+    fn accepts_absolute_drive_and_unc_paths() {
+        assert!(is_absolute_windows_path(r"C:\Users\Ada"));
+        assert!(is_absolute_windows_path("D:/Projects"));
+        assert!(is_absolute_windows_path(r"\\server\share"));
+        assert!(is_absolute_windows_path("//server/share/folder"));
+    }
+
+    #[test]
+    fn rejects_relative_or_incomplete_paths() {
+        assert!(!is_absolute_windows_path(r"Users\Ada"));
+        assert!(!is_absolute_windows_path(r"C:Users\Ada"));
+        assert!(!is_absolute_windows_path(r"\Users\Ada"));
+        assert!(!is_absolute_windows_path(r"\\server"));
+        assert!(!is_absolute_windows_path(r"\\server\"));
+    }
+
+    #[test]
+    fn trims_valid_paths_and_rejects_invalid_characters() {
+        assert_eq!(
+            validated_path(r"  C:\Users\Ada  "),
+            Ok(r"C:\Users\Ada".into())
+        );
+        assert_eq!(
+            validated_path(r#""D:/Build Output/""#),
+            Ok(r"D:\Build Output".into())
+        );
+        assert_eq!(
+            validated_path(r#"C:\Users\"Ada"#),
+            Err("The folder path contains invalid characters.")
+        );
+    }
+
+    #[test]
+    fn detects_duplicates_without_considering_case() {
+        let folders = vec![r"C:\Users\Ada".to_string()];
+
+        assert!(contains_case_insensitive(&folders, r"c:\users\ADA"));
+        assert!(!contains_case_insensitive(&folders, r"C:\Users\Grace"));
+    }
+
+    #[test]
+    fn composes_search_and_folder_exclusions() {
+        let folders = vec![r"C:\Windows".to_string(), r"D:\Build Output".to_string()];
+
+        assert_eq!(
+            compose_query("report ext:pdf", &folders),
+            r#"report ext:pdf !<whole:path:"C:\Windows"|ancestor:"C:\Windows"> !<whole:path:"D:\Build Output"|ancestor:"D:\Build Output">"#
+        );
+    }
+
+    #[test]
+    fn composes_exclusions_without_a_raw_query() {
+        let folders = vec![r"\\server\share".to_string()];
+
+        assert_eq!(
+            compose_query("   ", &folders),
+            r#"!<whole:path:"\\server\share"|ancestor:"\\server\share">"#
+        );
+        assert_eq!(compose_query(" name ", &[]), "name");
+    }
+}

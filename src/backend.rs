@@ -14,6 +14,14 @@ export async function everythingModernInvoke(command, args) {
 export function everythingModernHasTauri() {
   return typeof window.__TAURI__?.core?.invoke === "function";
 }
+
+export async function everythingModernPickFolder() {
+  return await window.__TAURI__.dialog.open({
+    directory: true,
+    multiple: false,
+    title: "Choose a folder to exclude",
+  });
+}
 "#)]
 extern "C" {
     #[wasm_bindgen(catch, js_name = everythingModernInvoke)]
@@ -21,6 +29,9 @@ extern "C" {
 
     #[wasm_bindgen(js_name = everythingModernHasTauri)]
     fn has_tauri() -> bool;
+
+    #[wasm_bindgen(catch, js_name = everythingModernPickFolder)]
+    async fn tauri_pick_folder() -> Result<JsValue, JsValue>;
 }
 
 mod command {
@@ -146,6 +157,22 @@ pub async fn cancel_trash(snapshot_id: u64) {
 
 pub async fn copy_text(text: &str) -> Result<(), String> {
     invoke(command::COPY_TEXT, &TextArgs { text }).await
+}
+
+pub async fn pick_folder() -> Result<Option<String>, String> {
+    if !has_tauri() {
+        return Err("The native folder picker is only available in the desktop app.".into());
+    }
+
+    let selection = tauri_pick_folder().await.map_err(js_error_to_string)?;
+    if selection.is_null() || selection.is_undefined() {
+        return Ok(None);
+    }
+
+    selection
+        .as_string()
+        .map(Some)
+        .ok_or_else(|| "The folder picker returned an invalid path.".into())
 }
 
 fn js_error_to_string(value: JsValue) -> String {

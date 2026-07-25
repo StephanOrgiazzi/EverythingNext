@@ -1,18 +1,22 @@
 mod columns;
 mod context_menu;
+mod exclusions;
 mod file_operations;
 mod formatting;
 mod icons;
 mod results;
 mod search;
 mod selection;
+mod theme;
 
 use self::columns::{ColumnHeaders, ResultColumns};
 use self::context_menu::{event_target_is_interactive, ResultContextMenu};
+use self::exclusions::{ExcludedFoldersSetting, ExcludedFoldersState};
 use self::file_operations::FileOperations;
 use self::results::{FileIcon, ResultViewport};
 use self::search::{SearchResults, RESULT_ROW_HEIGHT};
 use self::selection::{FocusMove, ResultSelection, SelectionModifiers};
+use self::theme::{ThemeSetting, ThemeState};
 use crate::{backend, window};
 use everything_core::IndexSelection;
 use gloo_timers::future::TimeoutFuture;
@@ -27,11 +31,13 @@ use web_sys::{HtmlInputElement, KeyboardEvent, MouseEvent};
     reason = "Leptos components conventionally use PascalCase names"
 )]
 pub fn App() -> impl IntoView {
-    let results = SearchResults::new();
+    let excluded_folders = ExcludedFoldersState::new();
+    let results = SearchResults::new(excluded_folders.folders);
     let selection = ResultSelection::new();
     let files = FileOperations::new();
     let menu = ResultContextMenu::new();
     let columns = ResultColumns::new();
+    let theme = ThemeState::new();
 
     let query = results.query;
     let total = results.total;
@@ -48,6 +54,7 @@ pub fn App() -> impl IntoView {
     let viewport = ResultViewport::new();
     let engine_message = RwSignal::new("Connecting to Everything…".to_string());
     let engine_available = RwSignal::new(false);
+    let settings_open = RwSignal::new(false);
     let search_ref = NodeRef::<leptos::html::Input>::new();
     let list_ref = viewport.list_ref;
 
@@ -86,6 +93,12 @@ pub fn App() -> impl IntoView {
 
     let on_keydown = move |event: KeyboardEvent| {
         let key = event.key();
+        if key == "Escape" && settings_open.get_untracked() {
+            event.prevent_default();
+            settings_open.set(false);
+            return;
+        }
+
         if event.ctrl_key() && key.eq_ignore_ascii_case("l") {
             event.prevent_default();
             if let Some(input) = search_ref.get() {
@@ -264,6 +277,18 @@ pub fn App() -> impl IntoView {
                     <SidebarItem label="Videos" icon=icons::video() item_query="ext:mp4;mkv;avi;mov;webm" query />
                     <SidebarItem label="Audio" icon=icons::audio() item_query="ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi" query />
                     <SidebarItem label="Archives" icon=icons::archive() item_query="ext:zip;7z;rar;tar;gz" query />
+                    <div class="sidebar-spacer" aria-hidden="true"></div>
+                    <div class="sidebar-separator"></div>
+                    <button
+                        type="button"
+                        class="sidebar-item settings-sidebar-item"
+                        title="Settings"
+                        aria-haspopup="dialog"
+                        aria-expanded=move || settings_open.get()
+                        on:click=move |_| settings_open.set(true)
+                    >
+                        {icons::settings()}<span>"Settings"</span>
+                    </button>
                 </aside>
 
                 <section
@@ -425,6 +450,42 @@ pub fn App() -> impl IntoView {
                         <ContextAction danger=true icon=icons::trash() label="Move to Recycle Bin" shortcut="Del" on_click=move || { files.begin_trash(selection, results); context_menu.set(None); } />
                     </div>
                 })}
+            </Show>
+
+            <Show when=move || settings_open.get()>
+                <div class="modal-backdrop" on:click=move |_| settings_open.set(false)>
+                    <div
+                        class="modal-card settings-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="settings-title"
+                        on:click=move |event| event.stop_propagation()
+                    >
+                        <h2 id="settings-title">"Settings"</h2>
+                        <section class="settings-section" data-setting="theme" aria-labelledby="theme-setting-title">
+                            <h3 id="theme-setting-title">"Theme"</h3>
+                            <div class="settings-control" data-settings-control="theme">
+                                <ThemeSetting state=theme />
+                            </div>
+                        </section>
+                        <section class="settings-section" data-setting="excluded-folders" aria-labelledby="excluded-folders-setting-title">
+                            <h3 id="excluded-folders-setting-title">"Excluded folders"</h3>
+                            <div class="settings-control" data-settings-control="excluded-folders">
+                                <ExcludedFoldersSetting state=excluded_folders />
+                            </div>
+                        </section>
+                        <div class="modal-actions">
+                            <button
+                                type="button"
+                                class="dialog-button"
+                                autofocus
+                                on:click=move |_| settings_open.set(false)
+                            >
+                                "Close"
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </Show>
 
             <Show when=move || rename_target.get().is_some()>

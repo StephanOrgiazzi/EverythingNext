@@ -1,3 +1,4 @@
+use super::exclusions::compose_query;
 use crate::backend;
 use everything_core::{QueryRequest, SearchResult, SelectionRange, SelectionRequest, SortSpec};
 use gloo_timers::future::TimeoutFuture;
@@ -15,6 +16,7 @@ const PAGE_CACHE_LIMIT: usize = 8;
 #[derive(Clone, Copy)]
 pub(super) struct SearchResults {
     pub query: RwSignal<String>,
+    excluded_folders: RwSignal<Vec<String>>,
     generation: RwSignal<u32>,
     refresh_token: RwSignal<u32>,
     pages: RwSignal<BTreeMap<u32, Vec<SearchResult>>>,
@@ -27,9 +29,10 @@ pub(super) struct SearchResults {
 }
 
 impl SearchResults {
-    pub fn new() -> Self {
+    pub fn new(excluded_folders: RwSignal<Vec<String>>) -> Self {
         Self {
             query: RwSignal::new(String::new()),
+            excluded_folders,
             generation: RwSignal::new(0),
             refresh_token: RwSignal::new(0),
             pages: RwSignal::new(BTreeMap::new()),
@@ -125,7 +128,10 @@ impl SearchResults {
 
     pub fn selection_request(self, ranges: Vec<SelectionRange>) -> SelectionRequest {
         SelectionRequest {
-            query: self.query.get_untracked(),
+            query: compose_query(
+                &self.query.get_untracked(),
+                &self.excluded_folders.get_untracked(),
+            ),
             sort: self.sort.get_untracked(),
             request_id: self.generation.get_untracked(),
             ranges,
@@ -138,6 +144,7 @@ impl SearchResults {
     {
         Effect::new(move |_| {
             let current_query = self.query.get();
+            let excluded_folders = self.excluded_folders.get();
             let current_sort = self.sort.get();
             let _refresh = self.refresh_token.get();
             let next_generation = self.begin_generation();
@@ -161,7 +168,12 @@ impl SearchResults {
                 {
                     return;
                 }
-                self.request_page(current_query, 0, current_sort, next_generation);
+                self.request_page(
+                    compose_query(&current_query, &excluded_folders),
+                    0,
+                    current_sort,
+                    next_generation,
+                );
             });
         });
 
@@ -169,6 +181,7 @@ impl SearchResults {
             let start = visible_start.get();
             let end = visible_end.get();
             let current_query = self.query.get();
+            let excluded_folders = self.excluded_folders.get();
             if current_query.trim().is_empty() || end == 0 {
                 return;
             }
@@ -179,7 +192,7 @@ impl SearchResults {
             let max_page = self.total.get().saturating_sub(1) / PAGE_SIZE;
             for page in first_page.saturating_sub(1)..=last_page.saturating_add(1).min(max_page) {
                 self.request_page(
-                    current_query.clone(),
+                    compose_query(&current_query, &excluded_folders),
                     page,
                     current_sort,
                     current_generation,
