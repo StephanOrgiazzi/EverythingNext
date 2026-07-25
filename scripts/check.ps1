@@ -1,5 +1,6 @@
 param(
   [switch]$InstallSdk,
+  [switch]$InstallRuntime,
   [switch]$FixFormatting
 )
 
@@ -7,19 +8,36 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $projectRoot
 
-if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
-  throw "Rust/Cargo est absent. Exécutez .\scripts\setup.ps1."
-}
-if (-not (Get-Command trunk -ErrorAction SilentlyContinue)) {
-  throw "Trunk est absent. Exécutez .\scripts\setup.ps1."
+function Test-ExplicitFile([string]$VariableName) {
+  $value = [Environment]::GetEnvironmentVariable($VariableName)
+  return $value -and (Test-Path $value -PathType Leaf)
 }
 
-if (-not (Test-Path "src-tauri\Everything3_x64.dll")) {
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+  throw "Rust/Cargo is missing. Run .\scripts\setup.ps1."
+}
+if (-not (Get-Command trunk -ErrorAction SilentlyContinue)) {
+  throw "Trunk is missing. Run .\scripts\setup.ps1."
+}
+
+if (-not (Test-Path "src-tauri\Everything3_x64.dll") -and -not (Test-ExplicitFile "EVERYTHING_SDK3_DLL")) {
   if ($InstallSdk) {
     & "$PSScriptRoot\install-everything-sdk.ps1"
   } else {
-    throw "Everything3_x64.dll absent. Exécutez .\scripts\setup.ps1 ou relancez avec -InstallSdk."
+    throw "Everything3_x64.dll is missing. Run .\scripts\setup.ps1 or use -InstallSdk."
   }
+}
+
+if (-not (Test-Path "src-tauri\engine\Everything.exe") -and -not (Test-ExplicitFile "EVERYTHING_ENGINE_EXE")) {
+  if ($InstallRuntime -or $InstallSdk) {
+    & "$PSScriptRoot\install-everything-runtime.ps1"
+  } else {
+    throw "The bundled Everything 1.5 runtime is missing. Run .\scripts\setup.ps1 or use -InstallRuntime."
+  }
+}
+
+if (-not (Test-Path "src-tauri\engine\THIRD-PARTY-LICENSES.txt")) {
+  throw "The bundled Everything runtime license notice is missing."
 }
 
 if (-not (Test-Path "Cargo.lock")) {
@@ -39,4 +57,4 @@ cargo check -p everything-modern-ui --target wasm32-unknown-unknown --locked
 cargo check -p everything-modern --locked
 trunk build --release
 
-Write-Host "Vérifications terminées."
+Write-Host "Validation completed." -ForegroundColor Green
