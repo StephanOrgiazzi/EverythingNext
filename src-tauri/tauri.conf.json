@@ -37,7 +37,7 @@
       "nsis"
     ],
     "resources": [
-      "Everything64.dll"
+      "Everything3_x64.dll"
     ],
     "shortDescription": "Everything search in a modern Windows 11 interface",
     "longDescription": "A fast, modern Windows client powered by the existing Everything index.",
