@@ -42,8 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         durations[index]
     };
     println!("Query: {query}");
-    println!("Résultats: {total_results}");
-    println!("Itérations: {}", durations.len());
+    println!("Results: {total_results}");
+    println!("Iterations: {}", durations.len());
     println!("p50: {:.2} ms", percentile(0.50));
     println!("p95: {:.2} ms", percentile(0.95));
     println!("max: {:.2} ms", durations[durations.len() - 1]);
@@ -52,5 +52,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("Ce benchmark nécessite Windows et une instance Everything lancée.");
+    eprintln!("This benchmark requires Windows and a running Everything instance.");
 }

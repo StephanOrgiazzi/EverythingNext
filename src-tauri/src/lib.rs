@@ -59,10 +59,10 @@ async fn engine_status(state: State<'_, AppState>) -> Result<EngineStatus, Strin
     tauri::async_runtime::spawn_blocking(move || {
         engine
             .lock()
-            .map_err(|_| "Verrou Everything empoisonné".to_string())?
+            .map_err(|_| "Everything lock was poisoned".to_string())?
             .as_ref()
             .map(|engine| engine.status())
-            .ok_or_else(|| "Moteur Everything indisponible".to_string())
+            .ok_or_else(|| "Everything engine is unavailable".to_string())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -87,28 +87,27 @@ async fn search_everything(
         .fetch_max(request.request_id, Ordering::SeqCst);
 
     if request.request_id < state.latest_generation.load(Ordering::SeqCst) {
-        return Err("Requête de recherche obsolète".into());
+        return Err("Stale search request".into());
     }
 
     let engine = state.engine.clone();
     let latest_generation = state.latest_generation.clone();
     tauri::async_runtime::spawn_blocking(move || {
         if request.request_id < latest_generation.load(Ordering::SeqCst) {
-            return Err("Requête de recherche obsolète".to_string());
+            return Err("Stale search request".to_string());
         }
 
         let mut guard = engine
             .lock()
-            .map_err(|_| "Verrou Everything empoisonné".to_string())?;
+            .map_err(|_| "Everything lock was poisoned".to_string())?;
 
         // Une requête plus récente peut avoir été reçue pendant l'attente du verrou.
         if request.request_id < latest_generation.load(Ordering::SeqCst) {
-            return Err("Requête de recherche obsolète".to_string());
+            return Err("Stale search request".to_string());
         }
 
         let engine = guard.as_mut().ok_or_else(|| {
-            "Everything SDK3 indisponible. Installez le SDK3 puis démarrez Everything 1.5."
-                .to_string()
+            "Everything SDK3 is unavailable. Install SDK3, then start Everything 1.5.".to_string()
         })?;
         engine.query(request).map_err(|error| error.to_string())
     })
@@ -123,7 +122,7 @@ async fn get_file_icon(state: State<'_, AppState>, path: String) -> Result<Optio
         .clone()
         .acquire_owned()
         .await
-        .map_err(|_| "Service d’icônes arrêté".to_string())?;
+        .map_err(|_| "Icon service has stopped".to_string())?;
     let icons = state.icons.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
@@ -179,13 +178,13 @@ async fn prepare_trash_selection(
 ) -> Result<TrashPreparation, String> {
     const MAX_TRASH_ITEMS: usize = 10_000;
     if request.ranges.is_empty() {
-        return Err("Aucun élément sélectionné".into());
+        return Err("No items selected".into());
     }
     if request.ranges.len() > 16_384 {
-        return Err("Sélection invalide : trop de plages disjointes".into());
+        return Err("Invalid selection: too many disjoint ranges".into());
     }
     if request.request_id != state.latest_generation.load(Ordering::SeqCst) {
-        return Err("La recherche a changé depuis la sélection. Recommencez l’opération.".into());
+        return Err("The search changed since the selection was made. Try again.".into());
     }
 
     let engine = state.engine.clone();
@@ -194,10 +193,10 @@ async fn prepare_trash_selection(
     let paths = tauri::async_runtime::spawn_blocking(move || {
         let mut guard = engine
             .lock()
-            .map_err(|_| "Verrou Everything empoisonné".to_string())?;
+            .map_err(|_| "Everything lock was poisoned".to_string())?;
         let engine = guard
             .as_mut()
-            .ok_or_else(|| "Moteur Everything indisponible".to_string())?;
+            .ok_or_else(|| "Everything engine is unavailable".to_string())?;
         engine
             .resolve_selection_cancellable(request, MAX_TRASH_ITEMS, || {
                 request_id != latest_generation.load(Ordering::SeqCst)
@@ -208,7 +207,7 @@ async fn prepare_trash_selection(
     .map_err(|error| error.to_string())??;
 
     if request_id != state.latest_generation.load(Ordering::SeqCst) {
-        return Err("La recherche a changé pendant la préparation de l’opération.".into());
+        return Err("The search changed while preparing the operation.".into());
     }
 
     let snapshot_id = state.next_trash_snapshot.fetch_add(1, Ordering::SeqCst);
@@ -216,7 +215,7 @@ async fn prepare_trash_selection(
     state
         .trash_snapshots
         .lock()
-        .map_err(|_| "Stockage des suppressions indisponible".to_string())?
+        .map_err(|_| "Deletion storage is unavailable".to_string())?
         .insert(snapshot_id, paths);
 
     Ok(TrashPreparation { snapshot_id, count })
@@ -238,9 +237,9 @@ async fn execute_trash_snapshot(
         let mut in_flight = state
             .trash_in_flight
             .lock()
-            .map_err(|_| "État des suppressions indisponible".to_string())?;
+            .map_err(|_| "Deletion state is unavailable".to_string())?;
         if !in_flight.insert(snapshot_id) {
-            return Err("Cette suppression est déjà en cours".into());
+            return Err("This deletion is already in progress".into());
         }
     }
 
@@ -251,14 +250,14 @@ async fn execute_trash_snapshot(
                 if let Ok(mut in_flight) = state.trash_in_flight.lock() {
                     in_flight.remove(&snapshot_id);
                 }
-                return Err("Cette confirmation a expiré ou a déjà été utilisée".into());
+                return Err("This confirmation has expired or was already used".into());
             }
         },
         Err(_) => {
             if let Ok(mut in_flight) = state.trash_in_flight.lock() {
                 in_flight.remove(&snapshot_id);
             }
-            return Err("Stockage des suppressions indisponible".into());
+            return Err("Deletion storage is unavailable".into());
         }
     };
 
@@ -316,7 +315,7 @@ fn register_windows_autostart() -> Result<(), String> {
     const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 
     let executable = std::env::current_exe()
-        .map_err(|error| format!("Impossible de localiser l’exécutable : {error}"))?;
+        .map_err(|error| format!("Unable to locate the executable: {error}"))?;
     let startup_command = format!("\"{}\" {AUTOSTART_ARG}", executable.display());
     let status = Command::new("reg.exe")
         .args([
@@ -332,13 +331,13 @@ fn register_windows_autostart() -> Result<(), String> {
         ])
         .creation_flags(CREATE_NO_WINDOW)
         .status()
-        .map_err(|error| format!("Impossible d’enregistrer l’auto-démarrage : {error}"))?;
+        .map_err(|error| format!("Unable to register auto-start: {error}"))?;
 
     if status.success() {
         Ok(())
     } else {
         Err(format!(
-            "reg.exe a échoué avec le code {}",
+            "reg.exe failed with exit code {}",
             status
                 .code()
                 .map_or_else(|| "inconnu".to_string(), |code| code.to_string())
@@ -399,7 +398,7 @@ pub fn run() {
                 next_trash_snapshot: AtomicU64::new(1),
             });
 
-            let open = MenuItem::with_id(app, TRAY_OPEN_ID, "Ouvrir", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, TRAY_OPEN_ID, "Open", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, TRAY_QUIT_ID, "Quitter", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
             let mut tray = TrayIconBuilder::new()

@@ -75,7 +75,7 @@ pub fn App() -> impl IntoView {
     let render_latency_ms = RwSignal::new(None::<f64>);
     let search_error = RwSignal::new(None::<String>);
     let error = RwSignal::new(None::<String>);
-    let engine_message = RwSignal::new("Connexion à Everything…".to_string());
+    let engine_message = RwSignal::new("Connecting to Everything…".to_string());
     let engine_available = RwSignal::new(false);
     let selected = RwSignal::new(IndexSelection::default());
     let focused_index = RwSignal::new(None::<u32>);
@@ -432,9 +432,9 @@ pub fn App() -> impl IntoView {
                 <div class="app-title" data-tauri-drag-region>"Everything Modern"</div>
                 <div class="titlebar-spacer" data-tauri-drag-region></div>
                 <div class="window-controls" on:dblclick=move |event| event.stop_propagation()>
-                    <button class="window-control" title="Réduire" aria-label="Réduire" on:click=move |event| { event.stop_propagation(); api::minimize_window(); }>{icon_minimize()}</button>
-                    <button class="window-control" title="Agrandir ou restaurer" aria-label="Agrandir ou restaurer" on:click=move |event| { event.stop_propagation(); api::toggle_maximize_window(); }>{icon_maximize()}</button>
-                    <button class="window-control close" title="Fermer" aria-label="Fermer" on:click=move |event| { event.stop_propagation(); api::close_window(); }>{icon_close()}</button>
+                    <button class="window-control" title="Minimize" aria-label="Minimize" on:click=move |event| { event.stop_propagation(); api::minimize_window(); }>{icon_minimize()}</button>
+                    <button class="window-control" title="Maximize or restore" aria-label="Maximize or restore" on:click=move |event| { event.stop_propagation(); api::toggle_maximize_window(); }>{icon_maximize()}</button>
+                    <button class="window-control close" title="Close" aria-label="Close" on:click=move |event| { event.stop_propagation(); api::close_window(); }>{icon_close()}</button>
                 </div>
             </header>
 
@@ -444,7 +444,7 @@ pub fn App() -> impl IntoView {
                     <input
                         node_ref=search_ref
                         type="search"
-                        placeholder="Rechercher dans Everything"
+                        placeholder="Search Everything"
                         prop:value=move || query.get()
                         on:input=on_search_input
                         autofocus
@@ -453,30 +453,30 @@ pub fn App() -> impl IntoView {
                 </div>
             </div>
 
-            <section class="command-bar" aria-label="Commandes">
-                <button class="command-button" title="Ouvrir" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+            <section class="command-bar" aria-label="Commands">
+                <button class="command-button" title="Open" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
                     if let Some(item) = focused_item(focused_index, pages) {
                         open_item(item.full_path, error);
                     }
-                }>{icon_open()}<span>"Ouvrir"</span></button>
-                <button class="command-button" title="Afficher dans l’Explorateur" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+                }>{icon_open()}<span>"Open"</span></button>
+                <button class="command-button" title="Show in Explorer" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
                     if let Some(item) = focused_item(focused_index, pages) {
                         reveal_item(item.full_path, error);
                     }
-                }>{icon_folder_open()}<span>"Afficher dans l’Explorateur"</span></button>
+                }>{icon_folder_open()}<span>"Show in Explorer"</span></button>
                 <span class="command-separator"></span>
-                <button class="command-button danger-hover" title="Mettre à la Corbeille" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error)>{icon_trash()}<span>"Supprimer"</span></button>
+                <button class="command-button danger-hover" title="Move to Recycle Bin" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error)>{icon_trash()}<span>"Delete"</span></button>
             </section>
 
             <div class="workspace">
                 <aside class="sidebar">
-                    <SidebarItem label="Tous les fichiers" icon=icon_home() active=move || query.get() == "*" on_click=move || query.set("*".into()) />
-                    <SidebarItem label="Modifiés aujourd’hui" icon=icon_clock() active=move || query.get() == "dm:today" on_click=move || query.set("dm:today".into()) />
+                    <SidebarItem label="All files" icon=icon_home() active=move || query.get() == "*" on_click=move || query.set("*".into()) />
+                    <SidebarItem label="Modified today" icon=icon_clock() active=move || query.get() == "dm:today" on_click=move || query.set("dm:today".into()) />
                     <div class="sidebar-separator"></div>
                     <div class="sidebar-section-label">"Types"</div>
                     <SidebarItem label="Documents" icon=icon_document() active=move || query.get() == "ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" on_click=move || query.set("ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt".into()) />
                     <SidebarItem label="Images" icon=icon_image() active=move || query.get() == "ext:png;jpg;jpeg;webp;gif;svg;avif" on_click=move || query.set("ext:png;jpg;jpeg;webp;gif;svg;avif".into()) />
-                    <SidebarItem label="Vidéos" icon=icon_video() active=move || query.get() == "ext:mp4;mkv;avi;mov;webm" on_click=move || query.set("ext:mp4;mkv;avi;mov;webm".into()) />
+                    <SidebarItem label="Videos" icon=icon_video() active=move || query.get() == "ext:mp4;mkv;avi;mov;webm" on_click=move || query.set("ext:mp4;mkv;avi;mov;webm".into()) />
                     <SidebarItem label="Audio" icon=icon_audio() active=move || query.get() == AUDIO_QUERY on_click=move || query.set(AUDIO_QUERY.into()) />
                     <SidebarItem label="Archives" icon=icon_archive() active=move || query.get() == "ext:zip;7z;rar;tar;gz" on_click=move || query.set("ext:zip;7z;rar;tar;gz".into()) />
                 </aside>
@@ -488,19 +488,19 @@ pub fn App() -> impl IntoView {
                 >
                     <div class="column-header" node_ref=column_header_ref>
                         <div class="column-heading col-name">
-                            <SortHeader label="Nom" column=SortColumn::Name sort=sort />
+                            <SortHeader label="Name" column=SortColumn::Name sort=sort />
                             <ColumnResizer boundary=ColumnBoundary::NamePath header_ref=column_header_ref widths=column_widths resizing=column_resize />
                         </div>
                         <div class="column-heading col-path">
-                            <SortHeader label="Chemin" column=SortColumn::Path sort=sort />
+                            <SortHeader label="Path" column=SortColumn::Path sort=sort />
                             <ColumnResizer boundary=ColumnBoundary::PathSize header_ref=column_header_ref widths=column_widths resizing=column_resize />
                         </div>
                         <div class="column-heading col-size">
-                            <SortHeader label="Taille" column=SortColumn::Size sort=sort />
+                            <SortHeader label="Size" column=SortColumn::Size sort=sort />
                             <ColumnResizer boundary=ColumnBoundary::SizeDate header_ref=column_header_ref widths=column_widths resizing=column_resize />
                         </div>
                         <div class="column-heading col-date">
-                            <SortHeader label="Modifié le" column=SortColumn::Modified sort=sort />
+                            <SortHeader label="Date modified" column=SortColumn::Modified sort=sort />
                         </div>
                     </div>
 
@@ -509,7 +509,7 @@ pub fn App() -> impl IntoView {
                         node_ref=list_ref
                         tabindex="0"
                         role="grid"
-                        aria-label="Résultats de recherche"
+                        aria-label="Search results"
                         on:scroll=on_scroll
                         on:click=move |_| {
                             selected.set(IndexSelection::default());
@@ -595,22 +595,22 @@ pub fn App() -> impl IntoView {
                         <Show when=move || query.get().trim().is_empty()>
                             <EmptyState
                                 icon=icon_search_large()
-                                title="Commencez à taper"
-                                message="Toutes les fonctions et opérateurs de recherche Everything sont acceptés."
+                                title="Start typing"
+                                message="All Everything search functions and operators are supported."
                             />
                         </Show>
                         <Show when=move || !query.get().trim().is_empty() && !loading.get() && total.get() == 0 && search_error.get().is_none()>
                             <EmptyState
                                 icon=icon_empty()
-                                title="Aucun résultat"
-                                message="Essayez une recherche moins restrictive ou vérifiez la syntaxe."
+                                title="No results"
+                                message="Try a less restrictive search or check the syntax."
                             />
                         </Show>
                         <Show when=move || search_error.get().is_some()>
                 {move || search_error.get().map(|message| view! {
                     <div class="error-banner" role="alert">
                         <span>{message}</span>
-                        <button class="banner-close" title="Fermer" aria-label="Fermer" on:click=move |_| search_error.set(None)>{icon_close()}</button>
+                        <button class="banner-close" title="Close" aria-label="Close" on:click=move |_| search_error.set(None)>{icon_close()}</button>
                     </div>
                 })}
             </Show>
@@ -618,8 +618,8 @@ pub fn App() -> impl IntoView {
             <Show when=move || error.get().is_some()>
                             <div class="error-banner" role="alert">
                                 {icon_warning()}
-                                <div><strong>"Une opération a échoué"</strong><span>{move || error.get().unwrap_or_default()}</span></div>
-                                <button class="banner-close" title="Fermer" aria-label="Fermer" on:click=move |_| error.set(None)>{icon_close()}</button>
+                                <div><strong>"An operation failed"</strong><span>{move || error.get().unwrap_or_default()}</span></div>
+                                <button class="banner-close" title="Close" aria-label="Close" on:click=move |_| error.set(None)>{icon_close()}</button>
                             </div>
                         </Show>
                     </div>
@@ -627,13 +627,13 @@ pub fn App() -> impl IntoView {
                     <footer class="statusbar">
                         <span>{move || format_result_count(total.get())}</span>
                         <span class="status-separator"></span>
-                        <span>{move || format!("{} sélectionné(s)", selected.with(IndexSelection::count))}</span>
+                        <span>{move || format!("{} selected", selected.with(IndexSelection::count))}</span>
                         <Show when=move || !engine_available.get()>
                             <span class="status-separator"></span>
-                            <span class="connection-warning" title=move || engine_message.get()>"Everything indisponible"</span>
+                            <span class="connection-warning" title=move || engine_message.get()>"Everything unavailable"</span>
                         </Show>
                         <span class="statusbar-spacer"></span>
-                        <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Recherche…"</span></Show>
+                        <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Searching…"</span></Show>
                     </footer>
                 </section>
             </div>
@@ -641,33 +641,33 @@ pub fn App() -> impl IntoView {
             <Show when=move || context_menu.get().is_some()>
                 {move || context_menu.get().map(|menu| view! {
                     <div class="context-menu" style:left=format!("{}px", menu.x) style:top=format!("{}px", menu.y) on:click=move |event| event.stop_propagation()>
-                        <ContextAction icon=icon_open() label="Ouvrir" shortcut="Entrée" on_click={
+                        <ContextAction icon=icon_open() label="Open" shortcut="Enter" on_click={
                             let path = menu.item.full_path.clone();
                             move || { context_menu.set(None); open_item(path.clone(), error); }
                         } />
-                        <ContextAction icon=icon_folder_open() label="Afficher dans l’Explorateur" shortcut="" on_click={
+                        <ContextAction icon=icon_folder_open() label="Show in Explorer" shortcut="" on_click={
                             let path = menu.item.full_path.clone();
                             move || { context_menu.set(None); reveal_item(path.clone(), error); }
                         } />
                         <div class="context-separator"></div>
-                        <ContextAction icon=icon_copy() label="Copier le nom" shortcut="" on_click={
+                        <ContextAction icon=icon_copy() label="Copy name" shortcut="" on_click={
                             let name = menu.item.name.clone();
                             move || { copy_text(name.clone(), error); context_menu.set(None); }
                         } />
-                        <ContextAction icon=icon_copy() label="Copier le chemin" shortcut="" on_click={
+                        <ContextAction icon=icon_copy() label="Copy path" shortcut="" on_click={
                             let path = menu.item.parent_path.clone();
                             move || { copy_text(path.clone(), error); context_menu.set(None); }
                         } />
-                        <ContextAction icon=icon_copy() label="Copier le chemin complet" shortcut="" on_click={
+                        <ContextAction icon=icon_copy() label="Copy full path" shortcut="" on_click={
                             let path = menu.item.full_path.clone();
                             move || { copy_text(path.clone(), error); context_menu.set(None); }
                         } />
-                        <ContextAction icon=icon_edit() label="Renommer" shortcut="F2" on_click={
+                        <ContextAction icon=icon_edit() label="Rename" shortcut="F2" on_click={
                             let item = menu.item.clone();
                             move || { context_menu.set(None); begin_rename(item.clone(), rename_target, rename_value); }
                         } />
                         <div class="context-separator"></div>
-                        <ContextAction danger=true icon=icon_trash() label="Mettre à la Corbeille" shortcut="Suppr" on_click=move || { context_menu.set(None); begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error); } />
+                        <ContextAction danger=true icon=icon_trash() label="Move to Recycle Bin" shortcut="Del" on_click=move || { context_menu.set(None); begin_trash(selected, query, sort, generation, trash_pending, trash_preparing, error); } />
                     </div>
                 })}
             </Show>
@@ -675,8 +675,8 @@ pub fn App() -> impl IntoView {
             <Show when=move || rename_target.get().is_some()>
                 {move || rename_target.get().map(|item| view! {
                     <div class="modal-backdrop" on:click=move |_| rename_target.set(None)>
-                        <div class="modal-card" role="dialog" aria-modal="true" aria-label="Renommer" on:click=move |event| event.stop_propagation()>
-                            <h2>"Renommer"</h2>
+                        <div class="modal-card" role="dialog" aria-modal="true" aria-label="Rename" on:click=move |event| event.stop_propagation()>
+                            <h2>"Rename"</h2>
                             <p class="modal-description">{item.full_path.clone()}</p>
                             <input
                                 class="modal-input"
@@ -703,8 +703,8 @@ pub fn App() -> impl IntoView {
                                 autofocus
                             />
                             <div class="modal-actions">
-                                <button class="dialog-button" on:click=move |_| rename_target.set(None)>"Annuler"</button>
-                                <button class="dialog-button primary" on:click=move |_| submit_rename(rename_target, rename_value, refresh_token, error)>"Renommer"</button>
+                                <button class="dialog-button" on:click=move |_| rename_target.set(None)>"Cancel"</button>
+                                <button class="dialog-button primary" on:click=move |_| submit_rename(rename_target, rename_value, refresh_token, error)>"Rename"</button>
                             </div>
                         </div>
                     </div>
@@ -714,8 +714,8 @@ pub fn App() -> impl IntoView {
             <Show when=move || trash_preparing.get()>
                 <div class="modal-backdrop">
                     <div class="modal-card" role="status" aria-live="polite">
-                        <h2>"Préparation de la suppression…"</h2>
-                        <p>"Everything Modern capture une liste immuable des fichiers sélectionnés."</p>
+                        <h2>"Preparing deletion…"</h2>
+                        <p>"Everything Modern is capturing an immutable list of the selected files."</p>
                     </div>
                 </div>
             </Show>
@@ -724,12 +724,12 @@ pub fn App() -> impl IntoView {
                 {move || trash_pending.get().map(|pending| view! {
                     <div class="modal-backdrop">
                         <div class="modal-card" role="alertdialog" aria-modal="true" aria-label="Confirmation de suppression" on:click=move |event| event.stop_propagation()>
-                            <h2>"Mettre à la Corbeille ?"</h2>
-                            <p>{format!("{} élément(s) seront déplacés vers la Corbeille.", pending.count)}</p>
+                            <h2>"Move to Recycle Bin?"</h2>
+                            <p>{format!("{} item(s) will be moved to the Recycle Bin.", pending.count)}</p>
                             <div class="modal-actions">
-                                <button class="dialog-button" disabled=move || trash_in_flight.get() on:click=move |_| cancel_trash(trash_pending)>"Annuler"</button>
+                                <button class="dialog-button" disabled=move || trash_in_flight.get() on:click=move |_| cancel_trash(trash_pending)>"Cancel"</button>
                                 <button class="dialog-button danger" disabled=move || trash_in_flight.get() on:click=move |_| submit_trash(trash_pending, selected, refresh_token, error, trash_in_flight)>
-                                    {move || if trash_in_flight.get() { "Suppression…" } else { "Mettre à la Corbeille" }}
+                                    {move || if trash_in_flight.get() { "Deleting…" } else { "Move to Recycle Bin" }}
                                 </button>
                             </div>
                         </div>
@@ -802,7 +802,7 @@ fn request_page(
                 record_next_frame_latency(received_at, render_latency_ms);
                 search_error.set(None);
             }
-            Err(message) if message.contains("obsolète") => {}
+            Err(message) if message.contains("stale") => {}
             Err(message) => search_error.set(Some(message)),
         }
         loading.set(loading_pages.with_untracked(|set| {
@@ -1225,7 +1225,7 @@ fn keyboard_context_position(
 
 fn validate_rename_input(name: &str) -> Result<(), String> {
     if name.trim().is_empty() || name.trim() != name {
-        return Err("Le nom ne peut pas être vide ni commencer ou finir par un espace.".into());
+        return Err("The name cannot be empty or start or end with a space.".into());
     }
     if name.ends_with('.')
         || name.chars().any(|character| {
@@ -1235,7 +1235,7 @@ fn validate_rename_input(name: &str) -> Result<(), String> {
             )
         })
     {
-        return Err("Ce nom contient un caractère interdit sous Windows.".into());
+        return Err("This name contains a character that is not allowed on Windows.".into());
     }
     Ok(())
 }
@@ -1362,7 +1362,7 @@ fn submit_trash(
                 refresh_results(refresh_token);
                 if !outcome.failures.is_empty() {
                     error.set(Some(format!(
-                        "{} élément(s) supprimé(s), {} échec(s) :\n{}",
+                        "{} item(s) deleted, {} failure(s):\n{}",
                         outcome.deleted,
                         outcome.failures.len(),
                         outcome.failures.join("\n")
@@ -1446,7 +1446,7 @@ fn format_result_count(total: u32) -> String {
         }
         output.push(ch);
     }
-    format!("{} résultat(s)", output.chars().rev().collect::<String>())
+    format!("{} result(s)", output.chars().rev().collect::<String>())
 }
 
 fn svg(path: &'static str) -> AnyView {

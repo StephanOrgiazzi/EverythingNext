@@ -32,8 +32,7 @@ type Search = unsafe extern "system" fn(*mut c_void, *mut c_void) -> *mut c_void
 type DestroyResultList = unsafe extern "system" fn(*mut c_void) -> i32;
 type GetResultListCount = unsafe extern "system" fn(*const c_void) -> usize;
 type IsFolderResult = unsafe extern "system" fn(*const c_void, usize) -> i32;
-type GetResultStringW =
-    unsafe extern "system" fn(*const c_void, usize, *mut u16, usize) -> usize;
+type GetResultStringW = unsafe extern "system" fn(*const c_void, usize, *mut u16, usize) -> usize;
 type GetResultU64 = unsafe extern "system" fn(*const c_void, usize) -> u64;
 
 pub struct EverythingSdk {
@@ -106,34 +105,24 @@ impl EverythingSdk {
             "Everything3_AddSearchPropertyRequest",
             AddSearchPropertyRequest
         );
-        let set_search_viewport_offset = symbol!(
-            "Everything3_SetSearchViewportOffset",
-            SetSearchViewport
-        );
+        let set_search_viewport_offset =
+            symbol!("Everything3_SetSearchViewportOffset", SetSearchViewport);
         let set_search_viewport_count =
             symbol!("Everything3_SetSearchViewportCount", SetSearchViewport);
-        let get_search_viewport_offset = symbol!(
-            "Everything3_GetSearchViewportOffset",
-            GetSearchViewport
-        );
-        let get_search_viewport_count = symbol!(
-            "Everything3_GetSearchViewportCount",
-            GetSearchViewport
-        );
+        let get_search_viewport_offset =
+            symbol!("Everything3_GetSearchViewportOffset", GetSearchViewport);
+        let get_search_viewport_count =
+            symbol!("Everything3_GetSearchViewportCount", GetSearchViewport);
         let search = symbol!("Everything3_Search", Search);
         let destroy_result_list = symbol!("Everything3_DestroyResultList", DestroyResultList);
-        let get_result_list_count =
-            symbol!("Everything3_GetResultListCount", GetResultListCount);
-        let get_result_list_viewport_count = symbol!(
-            "Everything3_GetResultListViewportCount",
-            GetResultListCount
-        );
+        let get_result_list_count = symbol!("Everything3_GetResultListCount", GetResultListCount);
+        let get_result_list_viewport_count =
+            symbol!("Everything3_GetResultListViewportCount", GetResultListCount);
         let is_folder_result = symbol!("Everything3_IsFolderResult", IsFolderResult);
         let get_result_name_w = symbol!("Everything3_GetResultNameW", GetResultStringW);
         let get_result_path_w = symbol!("Everything3_GetResultPathW", GetResultStringW);
         let get_result_size = symbol!("Everything3_GetResultSize", GetResultU64);
-        let get_result_date_modified =
-            symbol!("Everything3_GetResultDateModified", GetResultU64);
+        let get_result_date_modified = symbol!("Everything3_GetResultDateModified", GetResultU64);
 
         let instance_name = configured_instance_name();
         let instance_wide = to_wide(&instance_name);
@@ -206,10 +195,10 @@ impl EverythingSdk {
         EngineStatus {
             available: loaded,
             message: if loaded {
-                format!("Everything {version} connecté à {instance} via SDK3.")
+                format!("Everything {version} is connected to {instance} via SDK3.")
             } else {
                 format!(
-                    "SDK3 connecté à {instance}, mais la base Everything 1.5 n’est pas disponible."
+                    "SDK3 is connected to {instance}, but the Everything 1.5 database is unavailable."
                 )
             },
             version: Some(version),
@@ -227,28 +216,23 @@ impl EverythingSdk {
         };
 
         let search = to_wide(&request.query);
-        self.check_call(
-            "Everything3_SetSearchTextW",
-            unsafe { (self.set_search_text_w)(search_state.pointer, search.as_ptr()) },
-        )?;
+        self.check_call("Everything3_SetSearchTextW", unsafe {
+            (self.set_search_text_w)(search_state.pointer, search.as_ptr())
+        })?;
 
         let (sort_property, ascending) = map_sort(request.sort.column, request.sort.direction);
-        self.check_call(
-            "Everything3_AddSearchSort",
-            unsafe { (self.add_search_sort)(search_state.pointer, sort_property, ascending) },
-        )?;
+        self.check_call("Everything3_AddSearchSort", unsafe {
+            (self.add_search_sort)(search_state.pointer, sort_property, ascending)
+        })?;
         for property_id in [
             PROPERTY_ID_NAME,
             PROPERTY_ID_PATH,
             PROPERTY_ID_SIZE,
             PROPERTY_ID_DATE_MODIFIED,
         ] {
-            self.check_call(
-                "Everything3_AddSearchPropertyRequest",
-                unsafe {
-                    (self.add_search_property_request)(search_state.pointer, property_id)
-                },
-            )?;
+            self.check_call("Everything3_AddSearchPropertyRequest", unsafe {
+                (self.add_search_property_request)(search_state.pointer, property_id)
+            })?;
         }
         self.set_search_viewport(
             "Everything3_SetSearchViewportOffset",
@@ -337,7 +321,7 @@ impl EverythingSdk {
         let requested = ranges.iter().copied().map(|range| range.len()).sum::<u64>();
         if requested > max_items as u64 {
             return Err(EngineError::InvalidSelection(format!(
-                "Cette opération est limitée à {max_items} éléments à la fois"
+                "This operation is limited to {max_items} items at a time"
             )));
         }
         let mut paths = Vec::with_capacity(requested as usize);
@@ -347,7 +331,7 @@ impl EverythingSdk {
             loop {
                 if is_cancelled() {
                     return Err(EngineError::InvalidSelection(
-                        "La recherche a changé pendant la préparation".into(),
+                        "The search changed while preparing the operation".into(),
                     ));
                 }
                 let remaining = u64::from(range.end) - u64::from(offset) + 1;

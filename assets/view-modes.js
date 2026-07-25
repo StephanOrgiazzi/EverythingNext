@@ -7,28 +7,28 @@
   const GRID_GAP = 8;
   const MODES = {
     details: {
-      label: "Détails",
+      label: "Details",
       itemHeight: LOGICAL_ROW_HEIGHT,
       minWidth: Number.POSITIVE_INFINITY,
       maxColumns: 1,
       icon: "M4 5h3v3H4V5Zm5 0h11v3H9V5ZM4 10.5h3v3H4v-3Zm5 0h11v3H9v-3ZM4 16h3v3H4v-3Zm5 0h11v3H9v-3Z",
     },
     small: {
-      label: "Petites icônes",
+      label: "Small icons",
       itemHeight: 46,
       minWidth: 360,
       maxColumns: 2,
       icon: "M3 4h7v7H3V4Zm2 2v3h3V6H5Zm9-2h7v7h-7V4Zm2 2v3h3V6h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Zm9-2h7v7h-7v-7Zm2 2v3h3v-3h-3Z",
     },
     medium: {
-      label: "Icônes moyennes",
+      label: "Medium icons",
       itemHeight: 132,
       minWidth: 210,
       maxColumns: 5,
       icon: "M3 3h8v8H3V3Zm2 2v4h4V5H5Zm8-2h8v8h-8V3Zm2 2v4h4V5h-4ZM3 13h8v8H3v-8Zm2 2v4h4v-4H5Zm8-2h8v8h-8v-8Zm2 2v4h4v-4h-4Z",
     },
     large: {
-      label: "Grandes icônes",
+      label: "Large icons",
       itemHeight: 184,
       minWidth: 250,
       maxColumns: 4,
@@ -134,7 +134,7 @@
     overlay.className = "icon-results-scroll";
     overlay.tabIndex = 0;
     overlay.setAttribute("role", "grid");
-    overlay.setAttribute("aria-label", "Résultats de recherche en mode icônes");
+    overlay.setAttribute("aria-label", "Search results in icon view");
     overlay.hidden = true;
 
     const overlayCanvas = document.createElement("div");

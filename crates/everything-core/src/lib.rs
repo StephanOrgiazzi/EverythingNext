@@ -19,19 +19,19 @@ const EVERYTHING3_ERROR_SHUTDOWN: u32 = 0xE000_000C;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
-    #[error("Everything SDK3 introuvable. Installez Everything3_x64.dll avec scripts/install-everything-sdk.ps1 ou définissez EVERYTHING_SDK3_DLL.")]
+    #[error("Everything SDK3 was not found. Install Everything3_x64.dll with scripts/install-everything-sdk.ps1 or set EVERYTHING_SDK3_DLL.")]
     SdkNotFound,
-    #[error("Impossible de charger Everything SDK3 : {0}")]
+    #[error("Unable to load Everything SDK3: {0}")]
     SdkLoad(String),
-    #[error("Impossible de connecter Everything SDK3 à {instance} (code 0x{code:08X}). Vérifiez qu’Everything 1.5 est lancé dans cette instance.")]
+    #[error("Unable to connect Everything SDK3 to {instance} (code 0x{code:08X}). Make sure Everything 1.5 is running in that instance.")]
     ConnectionFailed { instance: String, code: u32 },
-    #[error("Version Everything non prise en charge : {0}. Everything Modern nécessite Everything 1.5.")]
+    #[error("Unsupported Everything version: {0}. Everything Modern requires Everything 1.5.")]
     UnsupportedEverythingVersion(String),
-    #[error("Échec de l’appel SDK3 {operation} (code 0x{code:08X}).")]
+    #[error("SDK3 call {operation} failed (code 0x{code:08X}).")]
     SdkCall { operation: &'static str, code: u32 },
-    #[error("Everything Modern nécessite Windows pour accéder au moteur Everything.")]
+    #[error("Everything Modern requires Windows to access the Everything engine.")]
     UnsupportedPlatform,
-    #[error("Sélection invalide : {0}")]
+    #[error("Invalid selection: {0}")]
     InvalidSelection(String),
 }
 
@@ -98,7 +98,7 @@ impl EverythingEngine {
                     .sdk
                     .borrow()
                     .as_ref()
-                    .expect("SDK3 connecté absent")
+                    .expect("connected SDK3 is missing")
                     .status(),
                 Err(error) => EngineStatus {
                     available: false,
@@ -157,7 +157,7 @@ impl EverythingEngine {
             let result = {
                 let mut sdk = self.sdk.borrow_mut();
                 sdk.as_mut()
-                    .expect("SDK3 connecté absent")
+                    .expect("connected SDK3 is missing")
                     .resolve_selection_cancellable(request, max_items, is_cancelled)
             };
             if let Err(error) = &result {
@@ -214,7 +214,7 @@ impl EverythingEngine {
         self.sdk
             .borrow_mut()
             .as_mut()
-            .expect("SDK3 connecté absent")
+            .expect("connected SDK3 is missing")
             .query(request)
     }
 

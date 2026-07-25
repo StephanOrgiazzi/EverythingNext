@@ -44,8 +44,7 @@ pub async fn status() -> EngineStatus {
         Ok(status) => status,
         Err(error) if error.contains("Tauri API unavailable") => EngineStatus {
             available: false,
-            message: "Aperçu navigateur — lancez `cargo tauri dev` pour utiliser Everything."
-                .into(),
+            message: "Browser preview — run `cargo tauri dev` to use Everything.".into(),
             version: None,
         },
         Err(error) => EngineStatus {
@@ -162,7 +161,7 @@ fn js_error_to_string(value: JsValue) -> String {
     value
         .as_string()
         .or_else(|| js_sys::Error::from(value).message().as_string())
-        .unwrap_or_else(|| "Erreur JavaScript inconnue".into())
+        .unwrap_or_else(|| "Unknown JavaScript error".into())
 }
 
 fn mock_page(request: QueryRequest) -> SearchPage {

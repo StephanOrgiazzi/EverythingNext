@@ -7,19 +7,19 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ShellError {
-    #[error("Le fichier ou dossier n’existe plus : {0}")]
+    #[error("The file or folder no longer exists: {0}")]
     MissingPath(String),
-    #[error("Chemin invalide : {0}")]
+    #[error("Invalid path: {0}")]
     InvalidPath(String),
-    #[error("Nom de fichier invalide sous Windows : {0}")]
+    #[error("Invalid Windows file name: {0}")]
     InvalidName(String),
-    #[error("Un élément portant déjà ce nom existe : {0}")]
+    #[error("An item with this name already exists: {0}")]
     AlreadyExists(String),
-    #[error("Opération système impossible : {0}")]
+    #[error("System operation failed: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Impossible d’écrire dans le presse-papiers : {0}")]
+    #[error("Unable to write to the clipboard: {0}")]
     Clipboard(String),
-    #[error("Impossible de produire l’icône : {0}")]
+    #[error("Unable to create the icon: {0}")]
     Icon(String),
 }
 
@@ -92,7 +92,7 @@ pub fn copy_text(text: &str) -> Result<(), ShellError> {
 #[cfg(not(windows))]
 pub fn copy_text(_text: &str) -> Result<(), ShellError> {
     Err(ShellError::Clipboard(
-        "le presse-papiers natif nécessite Windows".into(),
+        "The native clipboard requires Windows".into(),
     ))
 }
 
@@ -219,7 +219,7 @@ fn unique_temporary_sibling(source: &Path) -> Result<PathBuf, ShellError> {
         }
     }
     Err(ShellError::AlreadyExists(
-        "impossible de réserver un nom temporaire pour le renommage".into(),
+        "Unable to reserve a temporary name for renaming".into(),
     ))
 }
 
