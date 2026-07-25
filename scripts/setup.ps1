@@ -29,9 +29,9 @@ if (-not $SkipFormat) {
   cargo fmt --all
 }
 
-if (-not $SkipSdk -and -not (Test-Path "src-tauri\Everything64.dll")) {
+if (-not $SkipSdk -and -not (Test-Path "src-tauri\Everything3_x64.dll")) {
   & "$PSScriptRoot\install-everything-sdk.ps1"
 }
 
-Write-Host "Toolchain, lockfile et SDK prêts." -ForegroundColor Green
+Write-Host "Toolchain, lockfile et SDK3 prêts." -ForegroundColor Green
 Write-Host "Lancez .\scripts\check.ps1 puis .\scripts\dev.ps1."
