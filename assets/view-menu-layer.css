@@ -1,0 +1,9 @@
+/*
+ * The command bar uses backdrop-filter, which creates a stacking context.
+ * Keep that context above the following workspace so the absolutely positioned
+ * view menu is not painted behind the results panel.
+ */
+.command-bar {
+  position: relative;
+  z-index: 10;
+}
