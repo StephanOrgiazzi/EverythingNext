@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-windows:
     runs-on: windows-latest
@@ -29,8 +33,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install Trunk
-        shell: pwsh
-        run: cargo install trunk --version "0.21.14" --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@0.21.14
 
       - name: Install Everything SDK3
         shell: pwsh
