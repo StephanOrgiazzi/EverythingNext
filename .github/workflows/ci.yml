@@ -32,15 +32,28 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Install Trunk
+      - name: Install Trunk and Tauri CLI
         uses: taiki-e/install-action@v2
         with:
-          tool: trunk@0.21.14
-
-      - name: Install Everything SDK3
-        shell: pwsh
-        run: .\scripts\install-everything-sdk.ps1
+          tool: trunk@0.21.14,tauri-cli@2.11.0
 
       - name: Validate workspace
         shell: pwsh
-        run: .\scripts\check.ps1
+        run: .\scripts\check.ps1 -InstallSdk -InstallRuntime
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: .\scripts\build.ps1 -SkipChecks
+
+      - name: Smoke test NSIS installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem target/release/bundle/nsis/*.exe | Select-Object -First 1
+          .\scripts\smoke-installer.ps1 -InstallerPath $installer.FullName
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: everything-modern-nsis
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error

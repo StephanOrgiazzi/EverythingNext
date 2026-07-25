@@ -1,6 +1,7 @@
 use everything_core::{EverythingEngine, QueryRequest, SortSpec};
 use std::env;
-use std::time::Instant;
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[cfg(windows)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,6 +12,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(40)
         .max(5);
     let mut engine = EverythingEngine::new()?;
+
+    let readiness_deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let status = engine.status();
+        if status.available {
+            break;
+        }
+        if Instant::now() >= readiness_deadline {
+            return Err(status.message.into());
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
 
     // Warm-up : chargement IPC/DLL et première mise en cache Everything.
     let _ = engine.query(QueryRequest {

@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod bundled_engine;
 mod model;
 #[cfg(windows)]
 mod sdk;
@@ -23,6 +25,14 @@ pub enum EngineError {
     SdkNotFound,
     #[error("Unable to load Everything SDK3: {0}")]
     SdkLoad(String),
+    #[error("The bundled Everything 1.5 runtime was not found. Run scripts/install-everything-runtime.ps1 or set EVERYTHING_ENGINE_EXE.")]
+    EngineNotFound,
+    #[error("Invalid Everything instance name: {0}")]
+    InvalidInstance(String),
+    #[error("Unable to prepare the bundled Everything engine: {0}")]
+    EngineSetup(String),
+    #[error("Unable to start the bundled Everything engine: {0}")]
+    EngineStart(String),
     #[error("Unable to connect Everything SDK3 to {instance} (code 0x{code:08X}). Make sure Everything 1.5 is running in that instance.")]
     ConnectionFailed { instance: String, code: u32 },
     #[error("Unsupported Everything version: {0}. Everything Modern requires Everything 1.5.")]
@@ -56,14 +66,16 @@ pub struct EverythingEngine {
     sdk: RefCell<Option<sdk::EverythingSdk>>,
     #[cfg(windows)]
     dll_path: Option<PathBuf>,
+    #[cfg(windows)]
+    managed_engine: Option<bundled_engine::ManagedEngine>,
 }
 
 impl EverythingEngine {
-    /// Charge Everything SDK3 depuis le bundle de développement ou depuis
-    /// `EVERYTHING_SDK3_DLL`, puis tente de se connecter à l’instance Everything 1.5
-    /// configurée par `EVERYTHING_INSTANCE` (instance principale par défaut).
-    /// Un échec IPC transitoire est toléré afin que les appels suivants puissent
-    /// retenter la connexion sans redémarrer l’application.
+    /// Loads Everything SDK3 from the development bundle or from
+    /// `EVERYTHING_SDK3_DLL`. When the bundled runtime is available, it starts
+    /// a private named Everything 1.5 instance and points SDK3 at that instance.
+    /// Transient IPC failures are tolerated so later calls can reconnect without
+    /// restarting the application.
     pub fn new() -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
@@ -75,9 +87,8 @@ impl EverythingEngine {
         }
     }
 
-    /// Charge explicitement la DLL SDK3. Cette API garde la crate indépendante
-    /// de Tauri tout en permettant au shell desktop de fournir le chemin de la
-    /// ressource `Everything3_x64.dll` du bundle installé.
+    /// Loads the bundled SDK3 DLL explicitly while keeping the core crate
+    /// independent of Tauri resource resolution.
     pub fn from_dll_path(path: impl AsRef<Path>) -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
@@ -176,9 +187,11 @@ impl EverythingEngine {
 
     #[cfg(windows)]
     fn with_dll_path(dll_path: Option<PathBuf>) -> Result<Self, EngineError> {
+        let managed_engine = Some(bundled_engine::ManagedEngine::start()?);
         let engine = Self {
             sdk: RefCell::new(None),
             dll_path,
+            managed_engine,
         };
         match engine.ensure_connected() {
             Ok(()) => Ok(engine),
@@ -221,5 +234,18 @@ impl EverythingEngine {
     #[cfg(windows)]
     fn invalidate_connection(&self) {
         self.sdk.replace(None);
+    }
+}
+
+impl Drop for EverythingEngine {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        {
+            // Disconnect SDK3 before stopping the private IPC server.
+            self.sdk.replace(None);
+            if let Some(mut managed_engine) = self.managed_engine.take() {
+                managed_engine.stop();
+            }
+        }
     }
 }
