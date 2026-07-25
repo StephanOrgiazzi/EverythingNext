@@ -101,14 +101,22 @@ pub fn open_path(path: &str) -> Result<(), ShellError> {
     open::that(path).map_err(ShellError::Io)
 }
 
+fn explorer_select_argument(path: &str) -> String {
+    format!(r#"/select,"{path}""#)
+}
+
 pub fn reveal_path(path: &str) -> Result<(), ShellError> {
     ensure_exists(path)?;
     #[cfg(windows)]
     {
-        // L’argument complet est transmis séparément afin de préserver les
-        // espaces, virgules et caractères non ASCII du chemin.
+        use std::os::windows::process::CommandExt;
+
+        // Explorer utilise son propre parseur historique : si `/select,` et le
+        // chemin sont passés via `arg`, Rust peut entourer tout le switch de
+        // guillemets et Explorer l’ignore. On produit exactement la syntaxe
+        // attendue, en ne quotant que le chemin.
         std::process::Command::new("explorer.exe")
-            .arg(format!("/select,{}", path))
+            .raw_arg(explorer_select_argument(path))
             .spawn()?;
         return Ok(());
     }
@@ -324,9 +332,20 @@ fn extract_icon_data_uri(_path: &str) -> Result<Option<String>, ShellError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{icon_cache_key, normalized_operation_paths, rename_path, validate_windows_name};
+    use super::{
+        explorer_select_argument, icon_cache_key, normalized_operation_paths, rename_path,
+        validate_windows_name,
+    };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn explorer_select_argument_quotes_only_the_path() {
+        assert_eq!(
+            explorer_select_argument(r"C:\Users\Jean Dupont\rapport, été.pdf"),
+            r#"/select,"C:\Users\Jean Dupont\rapport, été.pdf""#
+        );
+    }
 
     #[test]
     fn accepts_normal_windows_names() {
