@@ -13,6 +13,7 @@ const ROW_HEIGHT: f64 = 34.0;
 const PAGE_SIZE: u32 = 256;
 const PAGE_CACHE_LIMIT: usize = 8;
 const OVERSCAN: u32 = 8;
+const AUDIO_QUERY: &str = "ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi";
 
 #[derive(Clone)]
 struct ContextMenuState {
@@ -476,6 +477,7 @@ pub fn App() -> impl IntoView {
                     <SidebarItem label="Documents" icon=icon_document() active=move || query.get() == "ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" on_click=move || query.set("ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt".into()) />
                     <SidebarItem label="Images" icon=icon_image() active=move || query.get() == "ext:png;jpg;jpeg;webp;gif;svg;avif" on_click=move || query.set("ext:png;jpg;jpeg;webp;gif;svg;avif".into()) />
                     <SidebarItem label="Vidéos" icon=icon_video() active=move || query.get() == "ext:mp4;mkv;avi;mov;webm" on_click=move || query.set("ext:mp4;mkv;avi;mov;webm".into()) />
+                    <SidebarItem label="Audio" icon=icon_audio() active=move || query.get() == AUDIO_QUERY on_click=move || query.set(AUDIO_QUERY.into()) />
                     <SidebarItem label="Archives" icon=icon_archive() active=move || query.get() == "ext:zip;7z;rar;tar;gz" on_click=move || query.set("ext:zip;7z;rar;tar;gz".into()) />
                 </aside>
 
@@ -1478,6 +1480,9 @@ fn icon_image() -> AnyView {
 }
 fn icon_video() -> AnyView {
     svg("M4 5h12a2 2 0 0 1 2 2v2l4-2v10l-4-2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h12V7H4Zm14 4.2v1.6l2 .9V10.3l-2 .9Z")
+}
+fn icon_audio() -> AnyView {
+    svg("M12 3v10.55A4 4 0 1 0 14 17V7h5V3h-7Zm-4 12a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6-10h3v2h-3V5Z")
 }
 fn icon_archive() -> AnyView {
     svg("M4 3h16v5h-1v13H5V8H4V3Zm2 2v1h12V5H6Zm1 3v11h10V8H7Zm3 3h4v2h-4v-2Z")
