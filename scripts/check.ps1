@@ -14,11 +14,11 @@ if (-not (Get-Command trunk -ErrorAction SilentlyContinue)) {
   throw "Trunk est absent. Exécutez .\scripts\setup.ps1."
 }
 
-if (-not (Test-Path "src-tauri\Everything64.dll")) {
+if (-not (Test-Path "src-tauri\Everything3_x64.dll")) {
   if ($InstallSdk) {
     & "$PSScriptRoot\install-everything-sdk.ps1"
   } else {
-    throw "Everything64.dll absent. Exécutez .\scripts\setup.ps1 ou relancez avec -InstallSdk."
+    throw "Everything3_x64.dll absent. Exécutez .\scripts\setup.ps1 ou relancez avec -InstallSdk."
   }
 }
 
@@ -39,4 +39,4 @@ cargo check -p everything-modern-ui --target wasm32-unknown-unknown --locked
 cargo check -p everything-modern --locked
 trunk build --release
 
-Write-Host "Vérifications terminées." -ForegroundColor Green
+Write-Host "Vérifications terminées."
