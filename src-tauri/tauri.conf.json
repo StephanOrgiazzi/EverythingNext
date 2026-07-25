@@ -39,7 +39,8 @@
     "resources": [
       "Everything3_x64.dll",
       "engine/Everything.exe",
-      "engine/THIRD-PARTY-LICENSES.txt"
+      "engine/THIRD-PARTY-LICENSES.txt",
+      "icons/icon.ico"
     ],
     "shortDescription": "Everything search in a modern Windows 11 interface",
     "longDescription": "A fast, standalone Windows search client powered by a private Everything 1.5 engine and SDK3.",

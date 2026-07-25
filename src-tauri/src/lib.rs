@@ -423,6 +423,9 @@ pub fn run() {
                     }
                 });
             if let Some(icon) = app.default_window_icon().cloned() {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.set_icon(icon.clone())?;
+                }
                 tray = tray.icon(icon);
             }
             tray.build(app)?;

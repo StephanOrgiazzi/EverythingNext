@@ -1,10 +1,11 @@
 .app-mark {
-  background-color: #FFD76B;
-  background-image: url("icon.svg");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+  background: transparent;
   color: transparent;
   font-size: 0;
   box-shadow: none;
+}
+
+.app-mark svg {
+  width: 20px;
+  height: 20px;
 }

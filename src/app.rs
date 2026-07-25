@@ -428,7 +428,13 @@ pub fn App() -> impl IntoView {
             on:pointercancel=move |event| finish_column_resize(event, column_resize)
         >
             <header class="titlebar" data-tauri-drag-region on:dblclick=move |_| api::toggle_maximize_window()>
-                <div class="app-mark" aria-hidden="true">"E"</div>
+                <div class="app-mark" aria-hidden="true">
+                    <svg viewBox="0 0 256 256">
+                        <rect x="14" y="14" width="228" height="228" rx="56" fill="#FFD76B"></rect>
+                        <circle cx="108" cy="104" r="50" fill="none" stroke="#C95000" stroke-width="23"></circle>
+                        <path d="M143.5 139.5 196 192" fill="none" stroke="#C95000" stroke-width="23" stroke-linecap="round"></path>
+                    </svg>
+                </div>
                 <div class="app-title" data-tauri-drag-region>"Everything Modern"</div>
                 <div class="titlebar-spacer" data-tauri-drag-region></div>
                 <div class="window-controls" on:dblclick=move |event| event.stop_propagation()>

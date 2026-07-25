@@ -156,6 +156,9 @@ fn merge_config(existing: &str, service_pipe: &str) -> String {
         ("allow_multiple_instances", "0".to_string()),
         ("ipc_enabled", "1".to_string()),
         ("service_pipe_name", service_pipe.to_string()),
+        ("auto_include_fixed_volumes", "1".to_string()),
+        ("auto_include_fixed_refs_volumes", "1".to_string()),
+        ("auto_include_fixed_fat_volumes", "1".to_string()),
     ];
     let newline = if existing.contains("\r\n") {
         "\r\n"
@@ -328,6 +331,27 @@ mod tests {
 
         assert_eq!(merged.matches("[Everything]").count(), 1);
         assert!(merged.contains("show_tray_icon=0\n"));
+    }
+
+    #[test]
+    fn enables_indexing_for_all_fixed_volume_types() {
+        let existing = "\
+[Everything]
+auto_include_fixed_volumes=0
+auto_include_fixed_refs_volumes=0
+auto_include_fixed_fat_volumes=0
+";
+        let merged = merge_config(existing, "test-pipe");
+
+        assert!(merged.contains("auto_include_fixed_volumes=1\n"));
+        assert!(merged.contains("auto_include_fixed_refs_volumes=1\n"));
+        assert!(merged.contains("auto_include_fixed_fat_volumes=1\n"));
+        assert_eq!(merged.matches("auto_include_fixed_volumes=").count(), 1);
+        assert_eq!(
+            merged.matches("auto_include_fixed_refs_volumes=").count(),
+            1
+        );
+        assert_eq!(merged.matches("auto_include_fixed_fat_volumes=").count(), 1);
     }
 
     #[test]

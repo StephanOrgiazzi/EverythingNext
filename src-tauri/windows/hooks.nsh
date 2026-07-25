@@ -38,6 +38,25 @@ bundled_engine_install_found:
   Abort
 
 bundled_service_install_done:
+  ; Give shortcuts an explicit icon file. This avoids Explorer retaining the
+  ; icon embedded in an older version of the executable at the same path.
+  !if "${STARTMENUFOLDER}" != ""
+    StrCpy $2 "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
+  !else
+    StrCpy $2 "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+  !endif
+  IfFileExists "$2" 0 refresh_desktop_shortcut
+  Delete "$2"
+  CreateShortcut "$2" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\resources\icons\icon.ico" 0
+  !insertmacro SetLnkAppUserModelId "$2"
+
+refresh_desktop_shortcut:
+  IfFileExists "$DESKTOP\${PRODUCTNAME}.lnk" 0 shortcuts_refreshed
+  Delete "$DESKTOP\${PRODUCTNAME}.lnk"
+  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\resources\icons\icon.ico" 0
+  !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
+
+shortcuts_refreshed:
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
