@@ -1,0 +1,35 @@
+:focus,
+:focus-visible {
+  outline: none !important;
+}
+
+.window-control:focus-visible,
+.command-button:focus-visible,
+.sidebar-item:focus-visible,
+.column-button:focus-visible,
+.context-action:focus-visible,
+.banner-close:focus-visible,
+.dialog-button:focus-visible,
+.view-option:focus-visible {
+  background: var(--hover);
+}
+
+.search-box:focus-within {
+  border-color: var(--border-soft);
+  box-shadow: none;
+}
+
+.results-scroll:focus-visible,
+.icon-results-scroll:focus-visible {
+  box-shadow: none;
+}
+
+.result-row.focused,
+.icon-result.focused {
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: var(--border);
+  box-shadow: none;
+}
