@@ -63,6 +63,10 @@ impl SelectionRange {
         }
     }
 
+    #[allow(
+        clippy::len_without_is_empty,
+        reason = "inclusive selection ranges always contain at least one index"
+    )]
     pub fn len(self) -> u64 {
         u64::from(self.end) - u64::from(self.start) + 1
     }
@@ -74,6 +78,18 @@ pub struct SelectionRequest {
     pub sort: SortSpec,
     pub request_id: u32,
     pub ranges: Vec<SelectionRange>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrashPreparation {
+    pub snapshot_id: u64,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrashOutcome {
+    pub deleted: usize,
+    pub failures: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

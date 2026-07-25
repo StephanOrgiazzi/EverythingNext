@@ -30,8 +30,7 @@ impl ManagedEngine {
             ));
         }
 
-        // SDK3 reads this variable when establishing its IPC3 connection.
-        env::set_var("EVERYTHING_INSTANCE", &instance_name);
+        configure_sdk_instance(&instance_name);
 
         let executable = locate_engine().ok_or(EngineError::EngineNotFound)?;
         let ipc_pipe = ipc_pipe_name(&instance_name);
@@ -55,15 +54,12 @@ impl ManagedEngine {
             EngineError::EngineSetup(format!("unable to update {}: {error}", config.display()))
         })?;
 
-        // `-service-pipe-name` is an install/configuration command that makes
-        // Everything exit after applying it. The persistent INI value above is
-        // the runtime source of truth.
-        let child = engine_command(&executable, &instance_name, &config, &database)
-            .spawn()
-            .map_err(|error| EngineError::EngineStart(error.to_string()))?;
-
-        // SDK3 retries on demand while the private engine initializes. Avoid
-        // blocking Tauri setup on the first index startup.
+        let child = spawn_engine_without_waiting_for_index(
+            &executable,
+            &instance_name,
+            &config,
+            &database,
+        )?;
         Ok(Self {
             executable,
             instance_name,
@@ -108,6 +104,21 @@ impl ManagedEngine {
             child: None,
         }
     }
+}
+
+fn configure_sdk_instance(instance_name: &str) {
+    env::set_var("EVERYTHING_INSTANCE", instance_name);
+}
+
+fn spawn_engine_without_waiting_for_index(
+    executable: &Path,
+    instance_name: &str,
+    config: &Path,
+    database: &Path,
+) -> Result<Child, EngineError> {
+    engine_command(executable, instance_name, config, database)
+        .spawn()
+        .map_err(|error| EngineError::EngineStart(error.to_string()))
 }
 
 fn engine_command(

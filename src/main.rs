@@ -1,5 +1,6 @@
-mod api;
 mod app;
+mod backend;
+mod window;
 
 fn main() {
     console_error_panic_hook::set_once();

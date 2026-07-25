@@ -3,6 +3,7 @@ mod bundled_engine;
 mod model;
 #[cfg(windows)]
 mod sdk;
+mod windows_name;
 
 #[cfg(windows)]
 use std::cell::RefCell;
@@ -11,6 +12,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 pub use model::*;
+pub use windows_name::{validate_windows_name, WindowsNameError};
 
 #[cfg(windows)]
 const EVERYTHING3_ERROR_IPC_PIPE_NOT_FOUND: u32 = 0xE000_0002;
@@ -50,7 +52,15 @@ impl EngineError {
     fn is_reconnectable(&self) -> bool {
         let code = match self {
             Self::ConnectionFailed { code, .. } | Self::SdkCall { code, .. } => *code,
-            _ => return false,
+            Self::SdkNotFound
+            | Self::SdkLoad(_)
+            | Self::EngineNotFound
+            | Self::InvalidInstance(_)
+            | Self::EngineSetup(_)
+            | Self::EngineStart(_)
+            | Self::UnsupportedEverythingVersion(_)
+            | Self::UnsupportedPlatform
+            | Self::InvalidSelection(_) => return false,
         };
         matches!(
             code,
@@ -71,15 +81,10 @@ pub struct EverythingEngine {
 }
 
 impl EverythingEngine {
-    /// Loads Everything SDK3 from the development bundle or from
-    /// `EVERYTHING_SDK3_DLL`. When the bundled runtime is available, it starts
-    /// a private named Everything 1.5 instance and points SDK3 at that instance.
-    /// Transient IPC failures are tolerated so later calls can reconnect without
-    /// restarting the application.
     pub fn new() -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
-            return Self::with_dll_path(None);
+            Self::with_dll_path(None)
         }
         #[cfg(not(windows))]
         {
@@ -87,12 +92,10 @@ impl EverythingEngine {
         }
     }
 
-    /// Loads the bundled SDK3 DLL explicitly while keeping the core crate
-    /// independent of Tauri resource resolution.
     pub fn from_dll_path(path: impl AsRef<Path>) -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
-            return Self::with_dll_path(Some(path.as_ref().to_path_buf()));
+            Self::with_dll_path(Some(path.as_ref().to_path_buf()))
         }
         #[cfg(not(windows))]
         {
@@ -104,7 +107,7 @@ impl EverythingEngine {
     pub fn status(&self) -> EngineStatus {
         #[cfg(windows)]
         {
-            return match self.ensure_connected() {
+            match self.ensure_connected() {
                 Ok(()) => self
                     .sdk
                     .borrow()
@@ -116,7 +119,7 @@ impl EverythingEngine {
                     message: error.to_string(),
                     version: None,
                 },
-            };
+            }
         }
         #[cfg(not(windows))]
         {
@@ -144,7 +147,7 @@ impl EverythingEngine {
                     return retry_result;
                 }
             }
-            return first_result;
+            first_result
         }
         #[cfg(not(windows))]
         {
@@ -176,7 +179,7 @@ impl EverythingEngine {
                     self.invalidate_connection();
                 }
             }
-            return result;
+            result
         }
         #[cfg(not(windows))]
         {
@@ -235,14 +238,18 @@ impl EverythingEngine {
     fn invalidate_connection(&self) {
         self.sdk.replace(None);
     }
+
+    #[cfg(windows)]
+    fn disconnect_sdk(&self) {
+        self.sdk.replace(None);
+    }
 }
 
 impl Drop for EverythingEngine {
     fn drop(&mut self) {
         #[cfg(windows)]
         {
-            // Disconnect SDK3 before stopping the private IPC server.
-            self.sdk.replace(None);
+            self.disconnect_sdk();
             if let Some(mut managed_engine) = self.managed_engine.take() {
                 managed_engine.stop();
             }

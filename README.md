@@ -92,11 +92,37 @@ Le script mesure les latences p50, p95 et maximale d’une page de 256 résultat
 
 ```text
 Everything Modern
-├── src/                       # UI Leptos CSR
-├── src-tauri/                 # orchestration Tauri et commandes IPC
-├── crates/everything-core/    # bridge SDK3 et gestion du moteur privé
-└── crates/windows-shell/      # icônes et opérations fichiers Windows
+├── src/                              # frontend Leptos CSR
+│   ├── main.rs                       # démarrage et composition
+│   ├── backend.rs                    # adaptateur IPC vers les commandes natives
+│   ├── window.rs                     # contrôles de la fenêtre Tauri
+│   └── app/
+│       ├── mod.rs                    # composition et structure visuelle
+│       ├── search.rs                 # générations, pagination et cache
+│       ├── results.rs                # viewport virtuel et icônes progressives
+│       ├── selection.rs              # sélection, focus et navigation
+│       ├── file_operations.rs        # ouverture, renommage et Corbeille
+│       ├── context_menu.rs           # état et positionnement du menu
+│       ├── columns.rs                 # tri et redimensionnement des colonnes
+│       ├── formatting.rs              # présentation des tailles, dates et totaux
+│       └── icons.rs                   # primitives SVG
+├── src-tauri/src/
+│   ├── lib.rs                        # composition du runtime Tauri
+│   ├── search.rs                     # moteur Everything et invalidation
+│   ├── shell_commands.rs             # commandes Shell Windows
+│   ├── trash.rs                      # snapshots immuables de suppression
+│   └── desktop.rs                    # instance unique, tray et démarrage auto
+├── crates/everything-core/           # modèle, façade moteur, SDK3 et moteur privé
+└── crates/windows-shell/src/
+    ├── lib.rs                        # interface publique stable
+    ├── file_operations.rs            # fichiers, dossiers et Corbeille
+    ├── icons.rs                      # extraction et cache des icônes
+    └── clipboard.rs                  # presse-papiers natif
 ```
+
+Les dépendances vont de l’interface vers les adaptateurs natifs, puis vers
+`everything-core` et `windows-shell`. Les règles du moteur et le modèle de
+sélection restent indépendants de Leptos et de Tauri.
 
 ## Raccourcis
 

@@ -399,11 +399,9 @@ impl EverythingSdk {
         search_state: *mut c_void,
         value: usize,
     ) -> Result<(), EngineError> {
-        // SDK3 3.0.0.9 applies these values but mistakenly always returns FALSE.
-        // Read the value back instead of trusting the broken return value.
         unsafe { setter(search_state, value) };
-        let actual = unsafe { getter(search_state) };
-        if actual == value {
+        let value_applied_by_sdk = unsafe { getter(search_state) };
+        if value_applied_by_sdk == value {
             Ok(())
         } else {
             Err(self.call_error(operation))
@@ -538,13 +536,12 @@ fn filetime_to_unix(filetime: u64) -> Option<i64> {
 }
 
 fn stable_id(path: &str) -> String {
-    // FNV-1a 64-bit: rapide, stable et suffisant pour une clé d’interface.
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    let mut fnv1a_64_hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in path.as_bytes() {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        fnv1a_64_hash ^= *byte as u64;
+        fnv1a_64_hash = fnv1a_64_hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    format!("{hash:016x}")
+    format!("{fnv1a_64_hash:016x}")
 }
 
 #[cfg(test)]

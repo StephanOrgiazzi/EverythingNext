@@ -1,0 +1,132 @@
+use std::ffi::OsStr;
+#[cfg(all(windows, not(debug_assertions)))]
+use std::os::windows::process::CommandExt;
+#[cfg(all(windows, not(debug_assertions)))]
+use std::process::Command;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, Runtime,
+};
+
+const AUTOSTART_ARG: &str = "--autostart";
+#[cfg(all(windows, not(debug_assertions)))]
+const AUTOSTART_VALUE_NAME: &str = "Everything Modern";
+const TRAY_OPEN_ID: &str = "open";
+const TRAY_QUIT_ID: &str = "quit";
+
+pub(crate) fn is_autostart_launch() -> bool {
+    std::env::args_os().any(|arg| is_autostart_arg(&arg))
+}
+
+pub(crate) fn string_args_include_autostart(args: &[String]) -> bool {
+    args.iter().any(|arg| is_autostart_arg(OsStr::new(arg)))
+}
+
+pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+pub(crate) fn install_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, TRAY_OPEN_ID, "Open", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, TRAY_QUIT_ID, "Quitter", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let mut tray = TrayIconBuilder::new()
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .tooltip("Everything Modern")
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            TRAY_OPEN_ID => show_main_window(app),
+            TRAY_QUIT_ID => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+            ) {
+                show_main_window(tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon().cloned() {
+        if let Some(window) = app.get_webview_window("main") {
+            window.set_icon(icon.clone())?;
+        }
+        tray = tray.icon(icon);
+    }
+    tray.build(app)?;
+    Ok(())
+}
+
+pub(crate) fn ensure_autostart_registered() {
+    if let Err(error) = register_windows_autostart() {
+        eprintln!("Everything Modern autostart: {error}");
+    }
+}
+
+fn is_autostart_arg(arg: &OsStr) -> bool {
+    arg == OsStr::new(AUTOSTART_ARG)
+}
+
+#[cfg(all(windows, not(debug_assertions)))]
+fn register_windows_autostart() -> Result<(), String> {
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Unable to locate the executable: {error}"))?;
+    let startup_command = format!("\"{}\" {AUTOSTART_ARG}", executable.display());
+    let status = Command::new("reg.exe")
+        .args([
+            "add",
+            RUN_KEY,
+            "/v",
+            AUTOSTART_VALUE_NAME,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &startup_command,
+            "/f",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|error| format!("Unable to register auto-start: {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "reg.exe failed with exit code {}",
+            status
+                .code()
+                .map_or_else(|| "inconnu".to_string(), |code| code.to_string())
+        ))
+    }
+}
+
+#[cfg(any(not(windows), debug_assertions))]
+fn register_windows_autostart() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_autostart_arg;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn detects_only_the_exact_autostart_argument() {
+        assert!(is_autostart_arg(OsStr::new("--autostart")));
+        assert!(!is_autostart_arg(OsStr::new("--autostart=true")));
+        assert!(!is_autostart_arg(OsStr::new("autostart")));
+    }
+}

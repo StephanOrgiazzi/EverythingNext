@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 base64 = "0.22"
+everything-core = { path = "../everything-core" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 open = "5"
 parking_lot = "0.12"

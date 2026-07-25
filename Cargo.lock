@@ -5670,6 +5670,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "clipboard-win",
+ "everything-core",
  "file_icon_provider",
  "image",
  "open",

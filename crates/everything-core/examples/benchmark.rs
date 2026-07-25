@@ -25,14 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread::sleep(Duration::from_millis(100));
     }
 
-    // Warm-up : chargement IPC/DLL et première mise en cache Everything.
-    let _ = engine.query(QueryRequest {
-        query: query.clone(),
-        offset: 0,
-        limit: 256,
-        sort: SortSpec::default(),
-        request_id: 0,
-    })?;
+    warm_up_engine(&mut engine, &query)?;
 
     let mut durations = Vec::with_capacity(iterations);
     let mut total_results = 0;
@@ -60,6 +53,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("p50: {:.2} ms", percentile(0.50));
     println!("p95: {:.2} ms", percentile(0.95));
     println!("max: {:.2} ms", durations[durations.len() - 1]);
+    Ok(())
+}
+
+#[cfg(windows)]
+fn warm_up_engine(
+    engine: &mut EverythingEngine,
+    query: &str,
+) -> Result<(), everything_core::EngineError> {
+    engine.query(QueryRequest {
+        query: query.to_owned(),
+        offset: 0,
+        limit: 256,
+        sort: SortSpec::default(),
+        request_id: 0,
+    })?;
     Ok(())
 }
 

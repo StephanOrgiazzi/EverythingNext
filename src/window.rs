@@ -1,0 +1,34 @@
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen(inline_js = r#"
+export async function everythingModernWindowAction(action) {
+  const getCurrentWindow = window.__TAURI__?.window?.getCurrentWindow;
+  if (!getCurrentWindow) return;
+  const appWindow = getCurrentWindow();
+  if (action === "minimize") await appWindow.minimize();
+  if (action === "toggle-maximize") await appWindow.toggleMaximize();
+  if (action === "close") await appWindow.close();
+}
+"#)]
+extern "C" {
+    #[wasm_bindgen(catch, js_name = everythingModernWindowAction)]
+    async fn window_action_js(action: &str) -> Result<JsValue, JsValue>;
+}
+
+pub fn minimize() {
+    spawn_action("minimize");
+}
+
+pub fn toggle_maximize() {
+    spawn_action("toggle-maximize");
+}
+
+pub fn close() {
+    spawn_action("close");
+}
+
+fn spawn_action(action: &'static str) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = window_action_js(action).await;
+    });
+}

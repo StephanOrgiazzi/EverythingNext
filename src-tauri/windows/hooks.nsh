@@ -47,13 +47,13 @@ bundled_service_install_done:
   !endif
   IfFileExists "$2" 0 refresh_desktop_shortcut
   Delete "$2"
-  CreateShortcut "$2" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\resources\icons\icon.ico" 0
+  CreateShortcut "$2" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\icons\icon.ico" 0
   !insertmacro SetLnkAppUserModelId "$2"
 
 refresh_desktop_shortcut:
   IfFileExists "$DESKTOP\${PRODUCTNAME}.lnk" 0 shortcuts_refreshed
   Delete "$DESKTOP\${PRODUCTNAME}.lnk"
-  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\resources\icons\icon.ico" 0
+  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\icons\icon.ico" 0
   !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
 
 shortcuts_refreshed:
