@@ -107,7 +107,8 @@ async fn search_everything(
         }
 
         let engine = guard.as_mut().ok_or_else(|| {
-            "Everything SDK indisponible. Installez le SDK puis démarrez Everything.".to_string()
+            "Everything SDK3 indisponible. Installez le SDK3 puis démarrez Everything 1.5."
+                .to_string()
         })?;
         engine.query(request).map_err(|error| error.to_string())
     })
@@ -282,7 +283,7 @@ fn initialize_engine<R: tauri::Runtime>(
 ) -> (Option<EverythingEngine>, Option<String>) {
     let bundled_dll = app
         .path()
-        .resolve("Everything64.dll", BaseDirectory::Resource)
+        .resolve("Everything3_x64.dll", BaseDirectory::Resource)
         .ok()
         .filter(|path| path.is_file());
 
