@@ -98,7 +98,7 @@ Le détail des corrections est disponible dans [`docs/FIXES.md`](docs/FIXES.md).
 
 ## Validation
 
-La CI Windows génère le lockfile, normalise le formatage, installe la DLL SDK3, exécute les tests et checks natifs/WASM, construit le frontend Trunk puis produit un installateur NSIS. Elle publie aussi `Cargo.lock` et l’installateur comme artefacts. Un build final doit être exécuté et testé sur Windows avec Everything 1.5 lancé avant publication.
+La CI Windows installe la DLL SDK3, exécute les tests et checks natifs/WASM, puis construit le frontend Trunk. La génération de l’installateur NSIS et le smoke test fonctionnel restent à exécuter sur Windows avec Everything 1.5 lancé avant publication.
 
 ## Sécurité des opérations destructrices
 
