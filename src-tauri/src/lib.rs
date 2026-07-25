@@ -1,5 +1,10 @@
 use everything_core::{EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest};
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
+#[cfg(all(windows, not(debug_assertions)))]
+use std::os::windows::process::CommandExt;
+#[cfg(all(windows, not(debug_assertions)))]
+use std::process::Command;
 use std::sync::{
     atomic::{AtomicU32, AtomicU64, Ordering},
     Arc, Mutex,
@@ -10,8 +15,11 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime, State, WindowEvent,
 };
+use tauri_plugin_window_state::StateFlags;
 use windows_shell::IconCache;
 
+const AUTOSTART_ARG: &str = "--autostart";
+const AUTOSTART_VALUE_NAME: &str = "Everything Modern";
 const TRAY_OPEN_ID: &str = "open";
 const TRAY_QUIT_ID: &str = "quit";
 
@@ -289,6 +297,60 @@ fn initialize_engine<R: tauri::Runtime>(
     }
 }
 
+fn is_autostart_arg(arg: &OsStr) -> bool {
+    arg == OsStr::new(AUTOSTART_ARG)
+}
+
+fn is_autostart_launch() -> bool {
+    std::env::args_os().any(|arg| is_autostart_arg(&arg))
+}
+
+fn string_args_include_autostart(args: &[String]) -> bool {
+    args.iter()
+        .any(|arg| is_autostart_arg(OsStr::new(arg)))
+}
+
+#[cfg(all(windows, not(debug_assertions)))]
+fn register_windows_autostart() -> Result<(), String> {
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Impossible de localiser l’exécutable : {error}"))?;
+    let startup_command = format!("\"{}\" {AUTOSTART_ARG}", executable.display());
+    let status = Command::new("reg.exe")
+        .args([
+            "add",
+            RUN_KEY,
+            "/v",
+            AUTOSTART_VALUE_NAME,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &startup_command,
+            "/f",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|error| format!("Impossible d’enregistrer l’auto-démarrage : {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "reg.exe a échoué avec le code {}",
+            status
+                .code()
+                .map_or_else(|| "inconnu".to_string(), |code| code.to_string())
+        ))
+    }
+}
+
+#[cfg(any(not(windows), debug_assertions))]
+fn register_windows_autostart() -> Result<(), String> {
+    Ok(())
+}
+
 fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -299,9 +361,32 @@ fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !string_args_include_autostart(&args) {
+                show_main_window(app);
+            }
+        }));
+    }
+
+    builder
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all().difference(StateFlags::VISIBLE))
+                .build(),
+        )
         .setup(|app| {
+            let autostart_launch = is_autostart_launch();
+
+            if !autostart_launch {
+                if let Err(error) = register_windows_autostart() {
+                    eprintln!("Everything Modern autostart: {error}");
+                }
+            }
+
             let (engine, engine_error) = initialize_engine(app);
             app.manage(AppState {
                 engine: Arc::new(Mutex::new(engine)),
@@ -342,6 +427,11 @@ pub fn run() {
                 tray = tray.icon(icon);
             }
             tray.build(app)?;
+
+            if !autostart_launch {
+                show_main_window(app.handle());
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -365,4 +455,16 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Everything Modern");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_only_the_exact_autostart_argument() {
+        assert!(is_autostart_arg(OsStr::new("--autostart")));
+        assert!(!is_autostart_arg(OsStr::new("--autostart=true")));
+        assert!(!is_autostart_arg(OsStr::new("autostart")));
+    }
 }
