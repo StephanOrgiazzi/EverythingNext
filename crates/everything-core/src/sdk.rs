@@ -4,56 +4,64 @@ use crate::{
 };
 use libloading::Library;
 use std::env;
+use std::ffi::c_void;
 use std::path::{Path, PathBuf};
+use std::ptr;
 
-const REQUEST_FILE_NAME: u32 = 0x0000_0001;
-const REQUEST_PATH: u32 = 0x0000_0002;
-const REQUEST_SIZE: u32 = 0x0000_0010;
-const REQUEST_DATE_MODIFIED: u32 = 0x0000_0040;
-
-const SORT_NAME_ASC: u32 = 1;
-const SORT_NAME_DESC: u32 = 2;
-const SORT_PATH_ASC: u32 = 3;
-const SORT_PATH_DESC: u32 = 4;
-const SORT_SIZE_ASC: u32 = 5;
-const SORT_SIZE_DESC: u32 = 6;
-const SORT_DATE_MODIFIED_ASC: u32 = 13;
-const SORT_DATE_MODIFIED_DESC: u32 = 14;
-
+const PROPERTY_ID_NAME: u32 = 0;
+const PROPERTY_ID_PATH: u32 = 1;
+const PROPERTY_ID_SIZE: u32 = 2;
+const PROPERTY_ID_DATE_MODIFIED: u32 = 5;
+const DEFAULT_INSTANCE_NAME: &str = "";
+const UNKNOWN_UINT64: u64 = u64::MAX;
 const WINDOWS_TO_UNIX_SECONDS: u64 = 11_644_473_600;
 
-type SetSearchW = unsafe extern "system" fn(*const u16);
-type SetRequestFlags = unsafe extern "system" fn(u32);
-type SetMax = unsafe extern "system" fn(u32);
-type SetOffset = unsafe extern "system" fn(u32);
-type SetSort = unsafe extern "system" fn(u32);
-type QueryW = unsafe extern "system" fn(i32) -> i32;
-type GetU32 = unsafe extern "system" fn() -> u32;
-type GetResultStringW = unsafe extern "system" fn(u32) -> *const u16;
-type GetResultU64 = unsafe extern "system" fn(u32, *mut u64) -> i32;
-type IsFolderResult = unsafe extern "system" fn(u32) -> i32;
+type ConnectW = unsafe extern "system" fn(*const u16) -> *mut c_void;
+type DestroyClient = unsafe extern "system" fn(*mut c_void) -> i32;
+type GetLastError = unsafe extern "system" fn() -> u32;
+type GetClientU32 = unsafe extern "system" fn(*mut c_void) -> u32;
+type IsDbLoaded = unsafe extern "system" fn(*mut c_void) -> i32;
+type CreateSearchState = unsafe extern "system" fn() -> *mut c_void;
+type DestroySearchState = unsafe extern "system" fn(*mut c_void) -> i32;
+type SetSearchTextW = unsafe extern "system" fn(*mut c_void, *const u16) -> i32;
+type AddSearchSort = unsafe extern "system" fn(*mut c_void, u32, i32) -> i32;
+type AddSearchPropertyRequest = unsafe extern "system" fn(*mut c_void, u32) -> i32;
+type SetSearchViewport = unsafe extern "system" fn(*mut c_void, usize) -> i32;
+type Search = unsafe extern "system" fn(*mut c_void, *mut c_void) -> *mut c_void;
+type DestroyResultList = unsafe extern "system" fn(*mut c_void) -> i32;
+type GetResultListCount = unsafe extern "system" fn(*const c_void) -> usize;
+type IsFolderResult = unsafe extern "system" fn(*const c_void, usize) -> i32;
+type GetResultStringW =
+    unsafe extern "system" fn(*const c_void, usize, *mut u16, usize) -> usize;
+type GetResultU64 = unsafe extern "system" fn(*const c_void, usize) -> u64;
 
 pub struct EverythingSdk {
     _library: Library,
-    set_search_w: SetSearchW,
-    set_request_flags: SetRequestFlags,
-    set_max: SetMax,
-    set_offset: SetOffset,
-    set_sort: SetSort,
-    query_w: QueryW,
-    get_num_results: GetU32,
-    get_tot_results: GetU32,
-    get_last_error: GetU32,
-    get_result_file_name_w: GetResultStringW,
+    client: *mut c_void,
+    instance_name: String,
+    destroy_client: DestroyClient,
+    get_last_error: GetLastError,
+    get_major_version: GetClientU32,
+    get_minor_version: GetClientU32,
+    get_revision: GetClientU32,
+    get_build_number: GetClientU32,
+    is_db_loaded: IsDbLoaded,
+    create_search_state: CreateSearchState,
+    destroy_search_state: DestroySearchState,
+    set_search_text_w: SetSearchTextW,
+    add_search_sort: AddSearchSort,
+    add_search_property_request: AddSearchPropertyRequest,
+    set_search_viewport_offset: SetSearchViewport,
+    set_search_viewport_count: SetSearchViewport,
+    search: Search,
+    destroy_result_list: DestroyResultList,
+    get_result_list_count: GetResultListCount,
+    get_result_list_viewport_count: GetResultListCount,
+    is_folder_result: IsFolderResult,
+    get_result_name_w: GetResultStringW,
     get_result_path_w: GetResultStringW,
     get_result_size: GetResultU64,
     get_result_date_modified: GetResultU64,
-    is_folder_result: IsFolderResult,
-    get_major_version: GetU32,
-    get_minor_version: GetU32,
-    get_revision: GetU32,
-    get_build_number: GetU32,
-    is_db_loaded: unsafe extern "system" fn() -> i32,
 }
 
 unsafe impl Send for EverythingSdk {}
@@ -79,76 +87,199 @@ impl EverythingSdk {
             }};
         }
 
+        let connect_w = symbol!("Everything3_ConnectW", ConnectW);
+        let destroy_client = symbol!("Everything3_DestroyClient", DestroyClient);
+        let get_last_error = symbol!("Everything3_GetLastError", GetLastError);
+        let get_major_version = symbol!("Everything3_GetMajorVersion", GetClientU32);
+        let get_minor_version = symbol!("Everything3_GetMinorVersion", GetClientU32);
+        let get_revision = symbol!("Everything3_GetRevision", GetClientU32);
+        let get_build_number = symbol!("Everything3_GetBuildNumber", GetClientU32);
+        let is_db_loaded = symbol!("Everything3_IsDBLoaded", IsDbLoaded);
+        let create_search_state = symbol!("Everything3_CreateSearchState", CreateSearchState);
+        let destroy_search_state = symbol!("Everything3_DestroySearchState", DestroySearchState);
+        let set_search_text_w = symbol!("Everything3_SetSearchTextW", SetSearchTextW);
+        let add_search_sort = symbol!("Everything3_AddSearchSort", AddSearchSort);
+        let add_search_property_request = symbol!(
+            "Everything3_AddSearchPropertyRequest",
+            AddSearchPropertyRequest
+        );
+        let set_search_viewport_offset = symbol!(
+            "Everything3_SetSearchViewportOffset",
+            SetSearchViewport
+        );
+        let set_search_viewport_count =
+            symbol!("Everything3_SetSearchViewportCount", SetSearchViewport);
+        let search = symbol!("Everything3_Search", Search);
+        let destroy_result_list = symbol!("Everything3_DestroyResultList", DestroyResultList);
+        let get_result_list_count =
+            symbol!("Everything3_GetResultListCount", GetResultListCount);
+        let get_result_list_viewport_count = symbol!(
+            "Everything3_GetResultListViewportCount",
+            GetResultListCount
+        );
+        let is_folder_result = symbol!("Everything3_IsFolderResult", IsFolderResult);
+        let get_result_name_w = symbol!("Everything3_GetResultNameW", GetResultStringW);
+        let get_result_path_w = symbol!("Everything3_GetResultPathW", GetResultStringW);
+        let get_result_size = symbol!("Everything3_GetResultSize", GetResultU64);
+        let get_result_date_modified =
+            symbol!("Everything3_GetResultDateModified", GetResultU64);
+
+        let instance_name = configured_instance_name();
+        let instance_wide = to_wide(&instance_name);
+        let instance_ptr = if instance_name.is_empty() {
+            ptr::null()
+        } else {
+            instance_wide.as_ptr()
+        };
+        let client = unsafe { connect_w(instance_ptr) };
+        if client.is_null() {
+            return Err(EngineError::ConnectionFailed {
+                instance: display_instance_name(&instance_name),
+                code: unsafe { get_last_error() },
+            });
+        }
+
+        let version = unsafe {
+            format!(
+                "{}.{}.{}.{}",
+                get_major_version(client),
+                get_minor_version(client),
+                get_revision(client),
+                get_build_number(client),
+            )
+        };
+        let supported = unsafe { get_major_version(client) == 1 && get_minor_version(client) >= 5 };
+        if !supported {
+            unsafe {
+                destroy_client(client);
+            }
+            return Err(EngineError::UnsupportedEverythingVersion(version));
+        }
+
         Ok(Self {
-            set_search_w: symbol!("Everything_SetSearchW", SetSearchW),
-            set_request_flags: symbol!("Everything_SetRequestFlags", SetRequestFlags),
-            set_max: symbol!("Everything_SetMax", SetMax),
-            set_offset: symbol!("Everything_SetOffset", SetOffset),
-            set_sort: symbol!("Everything_SetSort", SetSort),
-            query_w: symbol!("Everything_QueryW", QueryW),
-            get_num_results: symbol!("Everything_GetNumResults", GetU32),
-            get_tot_results: symbol!("Everything_GetTotResults", GetU32),
-            get_last_error: symbol!("Everything_GetLastError", GetU32),
-            get_result_file_name_w: symbol!("Everything_GetResultFileNameW", GetResultStringW),
-            get_result_path_w: symbol!("Everything_GetResultPathW", GetResultStringW),
-            get_result_size: symbol!("Everything_GetResultSize", GetResultU64),
-            get_result_date_modified: symbol!("Everything_GetResultDateModified", GetResultU64),
-            is_folder_result: symbol!("Everything_IsFolderResult", IsFolderResult),
-            get_major_version: symbol!("Everything_GetMajorVersion", GetU32),
-            get_minor_version: symbol!("Everything_GetMinorVersion", GetU32),
-            get_revision: symbol!("Everything_GetRevision", GetU32),
-            get_build_number: symbol!("Everything_GetBuildNumber", GetU32),
-            is_db_loaded: symbol!("Everything_IsDBLoaded", unsafe extern "system" fn() -> i32),
             _library: library,
+            client,
+            instance_name,
+            destroy_client,
+            get_last_error,
+            get_major_version,
+            get_minor_version,
+            get_revision,
+            get_build_number,
+            is_db_loaded,
+            create_search_state,
+            destroy_search_state,
+            set_search_text_w,
+            add_search_sort,
+            add_search_property_request,
+            set_search_viewport_offset,
+            set_search_viewport_count,
+            search,
+            destroy_result_list,
+            get_result_list_count,
+            get_result_list_viewport_count,
+            is_folder_result,
+            get_result_name_w,
+            get_result_path_w,
+            get_result_size,
+            get_result_date_modified,
         })
     }
 
     pub fn status(&self) -> EngineStatus {
-        let loaded = unsafe { (self.is_db_loaded)() != 0 };
-        let version = unsafe {
-            format!(
-                "{}.{}.{}.{}",
-                (self.get_major_version)(),
-                (self.get_minor_version)(),
-                (self.get_revision)(),
-                (self.get_build_number)(),
-            )
-        };
+        let loaded = unsafe { (self.is_db_loaded)(self.client) != 0 };
+        let version = self.version();
+        let instance = display_instance_name(&self.instance_name);
         EngineStatus {
             available: loaded,
             message: if loaded {
-                format!("Everything {version} connecté via le SDK IPC.")
+                format!("Everything {version} connecté à {instance} via SDK3.")
             } else {
-                "SDK chargé, mais la base Everything n’est pas disponible. Lancez Everything."
-                    .into()
+                format!(
+                    "SDK3 connecté à {instance}, mais la base Everything 1.5 n’est pas disponible."
+                )
             },
             version: Some(version),
         }
     }
 
     pub fn query(&mut self, request: QueryRequest) -> Result<SearchPage, EngineError> {
-        let search = to_wide(&request.query);
-        let sort = map_sort(request.sort.column, request.sort.direction);
-        unsafe {
-            (self.set_search_w)(search.as_ptr());
-            (self.set_request_flags)(
-                REQUEST_FILE_NAME | REQUEST_PATH | REQUEST_SIZE | REQUEST_DATE_MODIFIED,
-            );
-            (self.set_offset)(request.offset);
-            (self.set_max)(request.limit.clamp(1, 4096));
-            (self.set_sort)(sort);
-            if (self.query_w)(1) == 0 {
-                return Err(EngineError::QueryFailed((self.get_last_error)()));
-            }
+        let search_state_ptr = unsafe { (self.create_search_state)() };
+        if search_state_ptr.is_null() {
+            return Err(self.call_error("Everything3_CreateSearchState"));
         }
+        let search_state = SearchStateGuard {
+            pointer: search_state_ptr,
+            destroy: self.destroy_search_state,
+        };
 
-        let count = unsafe { (self.get_num_results)() };
-        let total = unsafe { (self.get_tot_results)() };
-        let mut items = Vec::with_capacity(count as usize);
+        let search = to_wide(&request.query);
+        self.check_call(
+            "Everything3_SetSearchTextW",
+            unsafe { (self.set_search_text_w)(search_state.pointer, search.as_ptr()) },
+        )?;
+
+        let (sort_property, ascending) = map_sort(request.sort.column, request.sort.direction);
+        self.check_call(
+            "Everything3_AddSearchSort",
+            unsafe { (self.add_search_sort)(search_state.pointer, sort_property, ascending) },
+        )?;
+        for property_id in [
+            PROPERTY_ID_NAME,
+            PROPERTY_ID_PATH,
+            PROPERTY_ID_SIZE,
+            PROPERTY_ID_DATE_MODIFIED,
+        ] {
+            self.check_call(
+                "Everything3_AddSearchPropertyRequest",
+                unsafe {
+                    (self.add_search_property_request)(search_state.pointer, property_id)
+                },
+            )?;
+        }
+        self.check_call(
+            "Everything3_SetSearchViewportOffset",
+            unsafe {
+                (self.set_search_viewport_offset)(search_state.pointer, request.offset as usize)
+            },
+        )?;
+        self.check_call(
+            "Everything3_SetSearchViewportCount",
+            unsafe {
+                (self.set_search_viewport_count)(
+                    search_state.pointer,
+                    request.limit.clamp(1, 4096) as usize,
+                )
+            },
+        )?;
+
+        let result_list_ptr = unsafe { (self.search)(self.client, search_state.pointer) };
+        if result_list_ptr.is_null() {
+            return Err(self.call_error("Everything3_Search"));
+        }
+        let result_list = ResultListGuard {
+            pointer: result_list_ptr,
+            destroy: self.destroy_result_list,
+        };
+
+        let count = unsafe { (self.get_result_list_viewport_count)(result_list.pointer) };
+        let total = unsafe { (self.get_result_list_count)(result_list.pointer) }
+            .min(u32::MAX as usize) as u32;
+        let mut items = Vec::with_capacity(count);
 
         for index in 0..count {
-            let name = unsafe { wide_ptr_to_string((self.get_result_file_name_w)(index)) };
-            let parent_path = unsafe { wide_ptr_to_string((self.get_result_path_w)(index)) };
+            let name = self.read_result_string(
+                self.get_result_name_w,
+                result_list.pointer,
+                index,
+                "Everything3_GetResultNameW",
+            )?;
+            let parent_path = self.read_result_string(
+                self.get_result_path_w,
+                result_list.pointer,
+                index,
+                "Everything3_GetResultPathW",
+            )?;
             let full_path = if parent_path.ends_with('\\') || parent_path.ends_with('/') {
                 format!("{parent_path}{name}")
             } else if parent_path.is_empty() {
@@ -156,24 +287,19 @@ impl EverythingSdk {
             } else {
                 format!("{parent_path}\\{name}")
             };
-            let is_dir = unsafe { (self.is_folder_result)(index) != 0 };
-            let mut raw_size = 0_u64;
-            let size =
-                unsafe { ((self.get_result_size)(index, &mut raw_size) != 0).then_some(raw_size) };
-            let mut raw_date = 0_u64;
-            let modified_unix = unsafe {
-                ((self.get_result_date_modified)(index, &mut raw_date) != 0)
-                    .then(|| filetime_to_unix(raw_date))
-                    .flatten()
-            };
+            let is_dir = unsafe { (self.is_folder_result)(result_list.pointer, index) != 0 };
+            let raw_size = unsafe { (self.get_result_size)(result_list.pointer, index) };
+            let raw_date = unsafe { (self.get_result_date_modified)(result_list.pointer, index) };
 
             items.push(SearchResult {
                 id: stable_id(&full_path),
                 name,
                 parent_path,
                 full_path,
-                size: if is_dir { None } else { size },
-                modified_unix,
+                size: (!is_dir && raw_size != UNKNOWN_UINT64).then_some(raw_size),
+                modified_unix: (raw_date != UNKNOWN_UINT64)
+                    .then(|| filetime_to_unix(raw_date))
+                    .flatten(),
                 is_dir,
             });
         }
@@ -235,6 +361,91 @@ impl EverythingSdk {
 
         Ok(paths)
     }
+
+    fn version(&self) -> String {
+        unsafe {
+            format!(
+                "{}.{}.{}.{}",
+                (self.get_major_version)(self.client),
+                (self.get_minor_version)(self.client),
+                (self.get_revision)(self.client),
+                (self.get_build_number)(self.client),
+            )
+        }
+    }
+
+    fn read_result_string(
+        &self,
+        getter: GetResultStringW,
+        result_list: *const c_void,
+        index: usize,
+        operation: &'static str,
+    ) -> Result<String, EngineError> {
+        let required = unsafe { getter(result_list, index, ptr::null_mut(), 0) };
+        let mut buffer = vec![0_u16; required.saturating_add(1).max(1)];
+        let written = unsafe { getter(result_list, index, buffer.as_mut_ptr(), buffer.len()) };
+        let error_code = unsafe { (self.get_last_error)() };
+        if error_code != 0 || written >= buffer.len() {
+            return Err(EngineError::SdkCall {
+                operation,
+                code: error_code,
+            });
+        }
+        buffer.truncate(written);
+        Ok(String::from_utf16_lossy(&buffer))
+    }
+
+    fn check_call(&self, operation: &'static str, succeeded: i32) -> Result<(), EngineError> {
+        if succeeded != 0 {
+            Ok(())
+        } else {
+            Err(self.call_error(operation))
+        }
+    }
+
+    fn call_error(&self, operation: &'static str) -> EngineError {
+        EngineError::SdkCall {
+            operation,
+            code: unsafe { (self.get_last_error)() },
+        }
+    }
+}
+
+impl Drop for EverythingSdk {
+    fn drop(&mut self) {
+        if !self.client.is_null() {
+            unsafe {
+                (self.destroy_client)(self.client);
+            }
+            self.client = ptr::null_mut();
+        }
+    }
+}
+
+struct SearchStateGuard {
+    pointer: *mut c_void,
+    destroy: DestroySearchState,
+}
+
+impl Drop for SearchStateGuard {
+    fn drop(&mut self) {
+        unsafe {
+            (self.destroy)(self.pointer);
+        }
+    }
+}
+
+struct ResultListGuard {
+    pointer: *mut c_void,
+    destroy: DestroyResultList,
+}
+
+impl Drop for ResultListGuard {
+    fn drop(&mut self) {
+        unsafe {
+            (self.destroy)(self.pointer);
+        }
+    }
 }
 
 fn normalize_selection_ranges(
@@ -258,8 +469,20 @@ fn normalize_selection_ranges(
     normalized
 }
 
+fn configured_instance_name() -> String {
+    env::var("EVERYTHING_INSTANCE").unwrap_or_else(|_| DEFAULT_INSTANCE_NAME.into())
+}
+
+fn display_instance_name(instance_name: &str) -> String {
+    if instance_name.is_empty() {
+        "l’instance principale".into()
+    } else {
+        format!("l’instance « {instance_name} »")
+    }
+}
+
 fn locate_sdk() -> Option<PathBuf> {
-    if let Ok(explicit) = env::var("EVERYTHING_SDK_DLL") {
+    if let Ok(explicit) = env::var("EVERYTHING_SDK3_DLL") {
         let path = PathBuf::from(explicit);
         if path.is_file() {
             return Some(path);
@@ -269,13 +492,12 @@ fn locate_sdk() -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(executable) = env::current_exe() {
         if let Some(directory) = executable.parent() {
-            candidates.push(directory.join("Everything64.dll"));
-            candidates.push(directory.join("Everything32.dll"));
+            candidates.push(directory.join("Everything3_x64.dll"));
         }
     }
     if let Ok(current) = env::current_dir() {
-        candidates.push(current.join("Everything64.dll"));
-        candidates.push(current.join("src-tauri").join("Everything64.dll"));
+        candidates.push(current.join("Everything3_x64.dll"));
+        candidates.push(current.join("src-tauri").join("Everything3_x64.dll"));
     }
     candidates.into_iter().find(|path| path.is_file())
 }
@@ -284,28 +506,15 @@ fn to_wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-unsafe fn wide_ptr_to_string(pointer: *const u16) -> String {
-    if pointer.is_null() {
-        return String::new();
-    }
-    let mut length = 0;
-    while *pointer.add(length) != 0 {
-        length += 1;
-    }
-    String::from_utf16_lossy(std::slice::from_raw_parts(pointer, length))
-}
-
-fn map_sort(column: SortColumn, direction: SortDirection) -> u32 {
-    match (column, direction) {
-        (SortColumn::Name, SortDirection::Ascending) => SORT_NAME_ASC,
-        (SortColumn::Name, SortDirection::Descending) => SORT_NAME_DESC,
-        (SortColumn::Path, SortDirection::Ascending) => SORT_PATH_ASC,
-        (SortColumn::Path, SortDirection::Descending) => SORT_PATH_DESC,
-        (SortColumn::Size, SortDirection::Ascending) => SORT_SIZE_ASC,
-        (SortColumn::Size, SortDirection::Descending) => SORT_SIZE_DESC,
-        (SortColumn::Modified, SortDirection::Ascending) => SORT_DATE_MODIFIED_ASC,
-        (SortColumn::Modified, SortDirection::Descending) => SORT_DATE_MODIFIED_DESC,
-    }
+fn map_sort(column: SortColumn, direction: SortDirection) -> (u32, i32) {
+    let property_id = match column {
+        SortColumn::Name => PROPERTY_ID_NAME,
+        SortColumn::Path => PROPERTY_ID_PATH,
+        SortColumn::Size => PROPERTY_ID_SIZE,
+        SortColumn::Modified => PROPERTY_ID_DATE_MODIFIED,
+    };
+    let ascending = i32::from(direction == SortDirection::Ascending);
+    (property_id, ascending)
 }
 
 fn filetime_to_unix(filetime: u64) -> Option<i64> {
@@ -325,14 +534,16 @@ fn stable_id(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{filetime_to_unix, map_sort, normalize_selection_ranges, stable_id, SORT_NAME_ASC};
+    use super::{
+        filetime_to_unix, map_sort, normalize_selection_ranges, stable_id, PROPERTY_ID_NAME,
+    };
     use crate::{SelectionRange, SortColumn, SortDirection};
 
     #[test]
     fn maps_default_sort() {
         assert_eq!(
             map_sort(SortColumn::Name, SortDirection::Ascending),
-            SORT_NAME_ASC
+            (PROPERTY_ID_NAME, 1)
         );
     }
 
@@ -346,6 +557,7 @@ mod tests {
         assert_eq!(stable_id(r"C:\test.txt"), stable_id(r"C:\test.txt"));
         assert_ne!(stable_id(r"C:\a.txt"), stable_id(r"C:\b.txt"));
     }
+
     #[test]
     fn normalizes_overlapping_selection_ranges() {
         let ranges = normalize_selection_ranges(vec![
