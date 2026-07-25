@@ -211,8 +211,7 @@
 }
 
 .icon-result .file-icon,
-.icon-result .file-icon img,
-.icon-result .file-icon svg {
+.icon-result .file-icon img {
   width: var(--view-icon-size);
   height: var(--view-icon-size);
 }

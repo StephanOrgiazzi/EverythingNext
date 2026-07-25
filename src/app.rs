@@ -567,7 +567,7 @@ pub fn App() -> impl IntoView {
                                                         }
                                                     >
                                                         <div class="cell col-name">
-                                                            <FileIcon path=item.full_path.clone() is_dir=item.is_dir />
+                                                            <FileIcon path=item.full_path.clone() />
                                                             <span class="file-name" title=item.name.clone()>{item.name.clone()}</span>
                                                         </div>
                                                         <div class="cell col-path" title=item.parent_path.clone()>{item.parent_path.clone()}</div>
@@ -865,7 +865,7 @@ fn ColumnResizer(
 }
 
 #[component]
-fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
+fn FileIcon(path: String) -> impl IntoView {
     let source = RwSignal::new(None::<String>);
     let path_for_effect = path.clone();
     Effect::new(move |_| {
@@ -876,10 +876,8 @@ fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
     });
 
     view! {
-        <span class="file-icon" class:folder=is_dir>
-            <Show when=move || source.get().is_some() fallback=move || if is_dir { icon_folder() } else { icon_file() }>
-                <img src=move || source.get().unwrap_or_default() alt="" />
-            </Show>
+        <span class="file-icon">
+            {move || source.get().map(|source| view! { <img src=source alt="" /> })}
         </span>
     }
 }
@@ -1481,12 +1479,6 @@ fn icon_video() -> AnyView {
 }
 fn icon_archive() -> AnyView {
     svg("M4 3h16v5h-1v13H5V8H4V3Zm2 2v1h12V5H6Zm1 3v11h10V8H7Zm3 3h4v2h-4v-2Z")
-}
-fn icon_folder() -> AnyView {
-    svg("M3 5h7l2 2h9v12H3V5Zm2 2v10h14V9h-7.8l-2-2H5Z")
-}
-fn icon_file() -> AnyView {
-    svg("M6 2h8l5 5v15H6V2Zm2 2v16h9V8h-4V4H8Zm7 .4V6h1.6L15 4.4Z")
 }
 fn icon_copy() -> AnyView {
     svg("M8 7h12v15H8V7Zm2 2v11h8V9h-8ZM4 2h12v3h-2V4H6v11h1v2H4V2Z")

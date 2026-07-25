@@ -122,10 +122,8 @@ kbd { padding: 1px 4px; border: 1px solid var(--border); border-radius: 3px; bac
 .cell.col-size { justify-content: flex-end; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cell.col-date { color: var(--muted); font-variant-numeric: tabular-nums; }
 .file-name { overflow: hidden; text-overflow: ellipsis; }
-.file-icon { width: 20px; height: 20px; display: grid; place-items: center; color: #5b9bd5; }
-.file-icon.folder { color: #f4c542; }
+.file-icon { width: 20px; height: 20px; display: grid; place-items: center; }
 .file-icon img { width: 20px; height: 20px; object-fit: contain; }
-.file-icon svg { width: 19px; height: 19px; }
 
 .skeleton-row { pointer-events: none; }
 .skeleton { display: block; height: 9px; border-radius: 999px; background: linear-gradient(90deg,var(--hover),color-mix(in srgb,var(--hover) 45%,transparent),var(--hover)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
