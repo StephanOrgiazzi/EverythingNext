@@ -1,7 +1,3 @@
-/*
- * Tailwind without Preflight. Global WebView defaults and the small runtime
- * layout contract live in explicit layers; utilities remain authoritative.
- */
 @layer theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
