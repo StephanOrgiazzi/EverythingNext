@@ -125,7 +125,8 @@ impl ResultViewport {
         } else {
             f64::from(anchor) * RESULT_ROW_HEIGHT
         };
-        self.set_scroll_top(target);
+        self.scroll_top.set(target);
+        self.set_scroll_top_after_layout(target, mode);
         store_view_mode(mode);
     }
 
@@ -239,9 +240,27 @@ impl ResultViewport {
 
     fn set_scroll_top(self, top: f64) {
         let top = top.max(0.0);
-        self.scroll_top.set(top);
         if let Some(list) = self.list_ref.get() {
             list.set_scroll_top(top as i32);
+            self.scroll_top.set(f64::from(list.scroll_top()));
+        } else {
+            self.scroll_top.set(top);
+        }
+    }
+
+    fn set_scroll_top_after_layout(self, top: f64, mode: ViewMode) {
+        let callback = wasm_bindgen::closure::Closure::once_into_js(move |_timestamp: f64| {
+            if self.mode.get_untracked() == mode {
+                self.set_scroll_top(top);
+            }
+        });
+        let scheduled = web_sys::window().is_some_and(|window| {
+            window
+                .request_animation_frame(callback.unchecked_ref())
+                .is_ok()
+        });
+        if !scheduled && self.mode.get_untracked() == mode {
+            self.set_scroll_top(top);
         }
     }
 }
