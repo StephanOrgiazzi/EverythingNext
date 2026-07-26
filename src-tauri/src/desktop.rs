@@ -25,9 +25,15 @@ pub(crate) fn string_args_include_autostart(args: &[String]) -> bool {
 
 pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+        if let Err(error) = window.show() {
+            eprintln!("Unable to show the main window: {error}");
+        }
+        if let Err(error) = window.unminimize() {
+            eprintln!("Unable to restore the main window: {error}");
+        }
+        if let Err(error) = window.set_focus() {
+            eprintln!("Unable to focus the main window: {error}");
+        }
     }
 }
 

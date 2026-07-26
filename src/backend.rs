@@ -115,12 +115,13 @@ pub async fn status() -> EngineStatus {
     }
 }
 
-pub async fn begin_generation(request_id: u32) {
-    let _ = invoke::<serde_json::Value, _>(
+pub async fn begin_generation(request_id: u32) -> Result<(), String> {
+    invoke::<serde_json::Value, _>(
         command::BEGIN_SEARCH_GENERATION,
         &RequestIdArgs { request_id },
     )
-    .await;
+    .await
+    .map(|_| ())
 }
 
 pub async fn search(request: QueryRequest) -> Result<SearchPage, String> {
@@ -130,18 +131,12 @@ pub async fn search(request: QueryRequest) -> Result<SearchPage, String> {
     invoke(command::SEARCH, &RequestArgs { request }).await
 }
 
-pub async fn icon(path: &str) -> Option<String> {
-    invoke::<Option<String>, _>(command::FILE_ICON, &PathArgs { path })
-        .await
-        .ok()
-        .flatten()
+pub async fn icon(path: &str) -> Result<Option<String>, String> {
+    invoke::<Option<String>, _>(command::FILE_ICON, &PathArgs { path }).await
 }
 
-pub async fn visual(path: &str, size: u32) -> Option<String> {
-    invoke::<Option<String>, _>(command::FILE_VISUAL, &VisualArgs { path, size })
-        .await
-        .ok()
-        .flatten()
+pub async fn visual(path: &str, size: u32) -> Result<Option<String>, String> {
+    invoke::<Option<String>, _>(command::FILE_VISUAL, &VisualArgs { path, size }).await
 }
 
 pub async fn open(path: &str) -> Result<(), String> {
@@ -164,9 +159,10 @@ pub async fn execute_trash(snapshot_id: u64) -> Result<TrashOutcome, String> {
     invoke(command::EXECUTE_TRASH, &SnapshotArgs { snapshot_id }).await
 }
 
-pub async fn cancel_trash(snapshot_id: u64) {
-    let _ =
-        invoke::<serde_json::Value, _>(command::CANCEL_TRASH, &SnapshotArgs { snapshot_id }).await;
+pub async fn cancel_trash(snapshot_id: u64) -> Result<(), String> {
+    invoke::<serde_json::Value, _>(command::CANCEL_TRASH, &SnapshotArgs { snapshot_id })
+        .await
+        .map(|_| ())
 }
 
 pub async fn copy_text(text: &str) -> Result<(), String> {

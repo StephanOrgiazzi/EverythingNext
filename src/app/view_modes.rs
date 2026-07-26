@@ -1,9 +1,11 @@
-use super::results::ResultViewport;
+use super::result_viewport::ResultViewport;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
+
+use crate::diagnostics;
 
 pub(super) const GRID_GAP: f64 = 8.0;
 pub(super) const GRID_PADDING: f64 = 10.0;
@@ -254,11 +256,15 @@ fn focus_option(index: usize) {
     else {
         return;
     };
-    let _ = element.focus();
+    if let Err(error) = element.focus() {
+        diagnostics::warn_js("Unable to focus a view-mode option.", &error);
+    }
 }
 
 fn focus_trigger(trigger_ref: NodeRef<leptos::html::Button>) {
     if let Some(trigger) = trigger_ref.get() {
-        let _ = trigger.focus();
+        if let Err(error) = trigger.focus() {
+            diagnostics::warn_js("Unable to focus the view-mode trigger.", &error);
+        }
     }
 }

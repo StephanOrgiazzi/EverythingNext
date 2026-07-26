@@ -2,6 +2,9 @@ use js_sys::{Function, Reflect};
 use leptos::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
 
+use super::browser_storage;
+use crate::diagnostics;
+
 const STORAGE_KEY: &str = "everything-modern.theme";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,23 +90,13 @@ pub fn ThemeSetting(state: ThemeState) -> impl IntoView {
 }
 
 fn preferred_theme() -> Theme {
-    let prefers_dark = (|| {
-        let window = web_sys::window()?;
-        let match_media = Reflect::get(window.as_ref(), &JsValue::from_str("matchMedia"))
-            .ok()?
-            .dyn_into::<Function>()
-            .ok()?;
-        let media_query = match_media
-            .call1(
-                window.as_ref(),
-                &JsValue::from_str("(prefers-color-scheme: dark)"),
-            )
-            .ok()?;
-        Reflect::get(&media_query, &JsValue::from_str("matches"))
-            .ok()?
-            .as_bool()
-    })()
-    .unwrap_or(false);
+    let prefers_dark = match prefers_dark_color_scheme() {
+        Ok(prefers_dark) => prefers_dark,
+        Err(error) => {
+            diagnostics::warn_js("Unable to determine the preferred color scheme.", &error);
+            false
+        }
+    };
 
     if prefers_dark {
         Theme::Dark
@@ -112,47 +105,40 @@ fn preferred_theme() -> Theme {
     }
 }
 
+fn prefers_dark_color_scheme() -> Result<bool, JsValue> {
+    let window =
+        web_sys::window().ok_or_else(|| JsValue::from_str("browser window is unavailable"))?;
+    let match_media =
+        Reflect::get(window.as_ref(), &JsValue::from_str("matchMedia"))?.dyn_into::<Function>()?;
+    let media_query = match_media.call1(
+        window.as_ref(),
+        &JsValue::from_str("(prefers-color-scheme: dark)"),
+    )?;
+    Reflect::get(&media_query, &JsValue::from_str("matches"))?
+        .as_bool()
+        .ok_or_else(|| JsValue::from_str("matchMedia returned a non-boolean matches value"))
+}
+
 fn apply_to_document(theme: Theme) {
     if let Some(root) = web_sys::window()
         .and_then(|window| window.document())
         .and_then(|document| document.document_element())
     {
-        let _ = root.set_attribute("data-theme", theme.as_str());
+        if let Err(error) = root.set_attribute("data-theme", theme.as_str()) {
+            diagnostics::warn_js("Unable to apply the selected theme.", &error);
+        }
     }
 }
 
-fn local_storage() -> Option<JsValue> {
-    let window = web_sys::window()?;
-    let storage = Reflect::get(window.as_ref(), &JsValue::from_str("localStorage")).ok()?;
-    (!storage.is_null() && !storage.is_undefined()).then_some(storage)
-}
-
 fn read_stored_theme() -> Option<Theme> {
-    let storage = local_storage()?;
-    let get_item = Reflect::get(&storage, &JsValue::from_str("getItem"))
-        .ok()?
-        .dyn_into::<Function>()
-        .ok()?;
-    let value = get_item
-        .call1(&storage, &JsValue::from_str(STORAGE_KEY))
-        .ok()?
-        .as_string()?;
-    Theme::from_stored(&value)
+    let value = browser_storage::read(STORAGE_KEY)?;
+    let theme = Theme::from_stored(&value);
+    if theme.is_none() {
+        diagnostics::warn(&format!("Ignoring unknown stored theme: {value}"));
+    }
+    theme
 }
 
 fn write_stored_theme(theme: Theme) {
-    let Some(storage) = local_storage() else {
-        return;
-    };
-    let Ok(set_item) = Reflect::get(&storage, &JsValue::from_str("setItem")) else {
-        return;
-    };
-    let Ok(set_item) = set_item.dyn_into::<Function>() else {
-        return;
-    };
-    let _ = set_item.call2(
-        &storage,
-        &JsValue::from_str(STORAGE_KEY),
-        &JsValue::from_str(theme.as_str()),
-    );
+    browser_storage::write(STORAGE_KEY, theme.as_str());
 }

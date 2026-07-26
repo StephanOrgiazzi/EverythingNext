@@ -140,7 +140,10 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
     impl Drop for BitmapGuard {
         fn drop(&mut self) {
             unsafe {
-                let _ = DeleteObject(HGDIOBJ(self.0 .0));
+                if !DeleteObject(HGDIOBJ(self.0 .0)).as_bool() {
+                    let error = windows::core::Error::from_thread();
+                    eprintln!("Unable to release preview bitmap: {error}");
+                }
             }
         }
     }
@@ -150,7 +153,10 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
     impl Drop for DcGuard {
         fn drop(&mut self) {
             unsafe {
-                let _ = DeleteDC(self.0);
+                if !DeleteDC(self.0).as_bool() {
+                    let error = windows::core::Error::from_thread();
+                    eprintln!("Unable to release preview device context: {error}");
+                }
             }
         }
     }

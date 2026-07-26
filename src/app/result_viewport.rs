@@ -1,11 +1,13 @@
 use super::search::{RESULT_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN};
 use super::view_modes::{ViewMode, GRID_GAP, GRID_PADDING};
-use crate::backend;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlDivElement;
+
+use super::browser_storage;
+use crate::diagnostics;
 
 const VIEW_MODE_STORAGE_KEY: &str = "everything-modern-view-mode";
 
@@ -60,6 +62,28 @@ impl ResultViewport {
                 .saturating_add(VIRTUALIZATION_OVERSCAN * 2)
                 .saturating_mul(columns);
             start.get().saturating_add(count).min(total.get())
+        })
+    }
+
+    pub fn viewport_start(self) -> Memo<u32> {
+        Memo::new(move |_| {
+            let mode = self.mode.get();
+            let columns = self.columns.get();
+            ((self.scroll_top.get() / mode.item_height()).floor() as u32).saturating_mul(columns)
+        })
+    }
+
+    pub fn viewport_end(self, total: RwSignal<u32>) -> Memo<u32> {
+        Memo::new(move |_| {
+            let mode = self.mode.get();
+            let columns = self.columns.get();
+            let first_row = (self.scroll_top.get() / mode.item_height()).floor() as u32;
+            let visible_rows = (self.height.get() / mode.item_height()).ceil() as u32;
+            first_row
+                .saturating_add(visible_rows)
+                .saturating_add(1)
+                .saturating_mul(columns)
+                .min(total.get())
         })
     }
 
@@ -199,11 +223,14 @@ impl ResultViewport {
         let width = if mode.is_grid() {
             list.client_width() as f64
         } else {
-            list.query_selector(".virtual-canvas")
-                .ok()
-                .flatten()
-                .map(|canvas| canvas.get_bounding_client_rect().width())
-                .unwrap_or_else(|| list.client_width() as f64)
+            match list.query_selector(".virtual-canvas") {
+                Ok(Some(canvas)) => canvas.get_bounding_client_rect().width(),
+                Ok(None) => list.client_width() as f64,
+                Err(error) => {
+                    diagnostics::warn_js("Unable to locate the result canvas.", &error);
+                    list.client_width() as f64
+                }
+            }
         };
         if (width - self.grid_width.get_untracked()).abs() > 0.5 {
             self.grid_width.set(width);
@@ -249,66 +276,21 @@ fn calculate_columns(mode: ViewMode, width: f64) -> u32 {
 }
 
 fn load_view_mode() -> ViewMode {
-    let stored = web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item(VIEW_MODE_STORAGE_KEY).ok().flatten());
+    let stored = browser_storage::read(VIEW_MODE_STORAGE_KEY);
     match stored.as_deref() {
         Some("small") => ViewMode::Small,
         Some("medium") => ViewMode::Medium,
         Some("large") => ViewMode::Large,
+        Some(value) => {
+            diagnostics::warn(&format!(
+                "Ignoring unknown stored result view mode: {value}"
+            ));
+            ViewMode::Details
+        }
         _ => ViewMode::Details,
     }
 }
 
 fn store_view_mode(mode: ViewMode) {
-    if let Some(storage) =
-        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-    {
-        let _ = storage.set_item(VIEW_MODE_STORAGE_KEY, mode.key());
-    }
-}
-
-#[component]
-pub(super) fn FileIcon(path: String) -> impl IntoView {
-    let source = RwSignal::new(None::<String>);
-    Effect::new(move |_| {
-        let path = path.clone();
-        spawn_local(async move {
-            source.set(backend::icon(&path).await);
-        });
-    });
-
-    view! {
-        <span class="file-icon">
-            {move || source.get().map(|source| view! { <img src=source alt="" /> })}
-        </span>
-    }
-}
-
-#[component]
-pub(super) fn FileVisual(path: String, size: u32) -> impl IntoView {
-    let source = RwSignal::new(None::<String>);
-    let visual_path = path.clone();
-    Effect::new(move |_| {
-        let path = visual_path.clone();
-        let pixel_ratio = web_sys::window()
-            .map(|window| window.device_pixel_ratio())
-            .unwrap_or(1.0);
-        let pixel_size = ((size as f64 * pixel_ratio).ceil() as u32).clamp(32, 256);
-        spawn_local(async move {
-            source.set(backend::visual(&path, pixel_size).await);
-        });
-    });
-
-    view! {
-        <span class="icon-result-visual">
-            {move || match source.get() {
-                Some(source) => view! {
-                    <img class="file-visual-image" src=source alt="" />
-                }
-                    .into_any(),
-                None => view! { <FileIcon path=path.clone() /> }.into_any(),
-            }}
-        </span>
-    }
+    browser_storage::write(VIEW_MODE_STORAGE_KEY, mode.key());
 }

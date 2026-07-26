@@ -3,6 +3,8 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlDivElement, PointerEvent};
 
+use crate::diagnostics;
+
 #[derive(Clone, Copy)]
 struct ColumnWidths {
     name: f64,
@@ -161,7 +163,9 @@ impl ResultColumns {
             .current_target()
             .and_then(|target| target.dyn_into::<Element>().ok())
         {
-            let _ = element.set_pointer_capture(event.pointer_id());
+            if let Err(error) = element.set_pointer_capture(event.pointer_id()) {
+                diagnostics::warn_js("Unable to capture the column-resize pointer.", &error);
+            }
         }
     }
 }
@@ -233,9 +237,14 @@ fn measure_column_widths(header: &HtmlDivElement) -> Option<ColumnWidths> {
 }
 
 fn measure_column(header: &HtmlDivElement, selector: &str) -> Option<f64> {
-    header
-        .query_selector(selector)
-        .ok()
-        .flatten()
-        .map(|element| element.get_bounding_client_rect().width())
+    match header.query_selector(selector) {
+        Ok(element) => element.map(|element| element.get_bounding_client_rect().width()),
+        Err(error) => {
+            diagnostics::warn_js(
+                &format!("Unable to measure result column '{selector}'."),
+                &error,
+            );
+            None
+        }
+    }
 }

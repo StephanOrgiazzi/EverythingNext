@@ -1,4 +1,4 @@
-use super::results::ResultViewport;
+use super::result_viewport::ResultViewport;
 use super::search::{SearchResults, RESULT_ROW_HEIGHT};
 use super::selection::ResultSelection;
 use super::view_modes::{GRID_GAP, GRID_PADDING};
@@ -6,6 +6,8 @@ use everything_core::SearchResult;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, KeyboardEvent};
+
+use crate::diagnostics;
 
 const MENU_WIDTH: i32 = 272;
 const MENU_HEIGHT: i32 = 324;
@@ -108,16 +110,8 @@ fn keyboard_position(index: u32, viewport: ResultViewport) -> (i32, i32) {
 fn clamp_to_viewport(x: i32, y: i32) -> (i32, i32) {
     let (width, height) = web_sys::window()
         .map(|window| {
-            let width = window
-                .inner_width()
-                .ok()
-                .and_then(|value| value.as_f64())
-                .unwrap_or(1280.0) as i32;
-            let height = window
-                .inner_height()
-                .ok()
-                .and_then(|value| value.as_f64())
-                .unwrap_or(720.0) as i32;
+            let width = viewport_dimension(window.inner_width(), "width", 1280.0);
+            let height = viewport_dimension(window.inner_height(), "height", 720.0);
             (width, height)
         })
         .unwrap_or((1280, 720));
@@ -125,4 +119,26 @@ fn clamp_to_viewport(x: i32, y: i32) -> (i32, i32) {
         x.clamp(VIEWPORT_MARGIN, (width - MENU_WIDTH).max(VIEWPORT_MARGIN)),
         y.clamp(VIEWPORT_MARGIN, (height - MENU_HEIGHT).max(VIEWPORT_MARGIN)),
     )
+}
+
+fn viewport_dimension(
+    result: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>,
+    name: &str,
+    fallback: f64,
+) -> i32 {
+    match result {
+        Ok(value) => value.as_f64().unwrap_or_else(|| {
+            diagnostics::warn(&format!(
+                "Viewport {name} was not numeric; using {fallback}px."
+            ));
+            fallback
+        }) as i32,
+        Err(error) => {
+            diagnostics::warn_js(
+                &format!("Unable to read viewport {name}; using {fallback}px."),
+                &error,
+            );
+            fallback as i32
+        }
+    }
 }

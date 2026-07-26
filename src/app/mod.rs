@@ -1,25 +1,29 @@
+mod browser_storage;
 mod columns;
 mod context_menu;
 mod exclusions;
 mod file_operations;
+mod file_visuals;
 mod formatting;
 mod icons;
-mod results;
+mod result_viewport;
 mod search;
 mod selection;
 mod theme;
 mod view_modes;
+mod visual_queue;
 
 use self::columns::{ColumnHeaders, ResultColumns};
 use self::context_menu::{event_target_is_interactive, ResultContextMenu};
 use self::exclusions::{ExcludedFoldersSetting, ExcludedFoldersState};
 use self::file_operations::FileOperations;
-use self::results::{FileIcon, FileVisual, ResultViewport};
+use self::file_visuals::{FileIcon, FileVisual};
+use self::result_viewport::ResultViewport;
 use self::search::SearchResults;
 use self::selection::{FocusMove, ResultSelection, SelectionModifiers};
 use self::theme::{ThemeSetting, ThemeState};
 use self::view_modes::{ViewMode, ViewSwitcher};
-use crate::{backend, window};
+use crate::{backend, diagnostics, window};
 use everything_core::IndexSelection;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -74,6 +78,8 @@ pub fn App() -> impl IntoView {
 
     let visible_start = viewport.visible_start();
     let visible_end = viewport.visible_end(visible_start, total);
+    let viewport_start = viewport.viewport_start();
+    let viewport_end = viewport.viewport_end(total);
     results.monitor(visible_start, visible_end, move || {
         selection.clear();
         files.reset_for_new_search();
@@ -105,7 +111,9 @@ pub fn App() -> impl IntoView {
         if event.ctrl_key() && key.eq_ignore_ascii_case("l") {
             event.prevent_default();
             if let Some(input) = search_ref.get() {
-                let _ = input.focus();
+                if let Err(error) = input.focus() {
+                    diagnostics::warn_js("Unable to focus the search field.", &error);
+                }
                 input.select();
             }
             return;
@@ -337,6 +345,8 @@ pub fn App() -> impl IntoView {
                                 let mode = viewport.mode.get();
                                 let columns = viewport.columns.get();
                                 let _width = viewport.grid_width.get();
+                                let thumbnail_start = viewport_start.get();
+                                let thumbnail_end = viewport_end.get();
                                 (start..end)
                                     .map(|index| {
                                         let maybe_item = results.item_at(index);
@@ -359,7 +369,11 @@ pub fn App() -> impl IntoView {
                                                             on:click=move |event: MouseEvent| {
                                                                 event.stop_propagation();
                                                                 selection.select_row(index, selection_modifiers(&event));
-                                                                if let Some(list) = list_ref.get() { let _ = list.focus(); }
+                                                                if let Some(list) = list_ref.get() {
+                                                                    if let Err(error) = list.focus() {
+                                                                        diagnostics::warn_js("Unable to focus the result list.", &error);
+                                                                    }
+                                                                }
                                                                 menu.close();
                                                             }
                                                             on:dblclick=move |_| files.open(item_for_double.full_path.clone())
@@ -422,7 +436,11 @@ pub fn App() -> impl IntoView {
                                                             on:click=move |event: MouseEvent| {
                                                                 event.stop_propagation();
                                                                 selection.select_row(index, selection_modifiers(&event));
-                                                                if let Some(list) = list_ref.get() { let _ = list.focus(); }
+                                                                if let Some(list) = list_ref.get() {
+                                                                    if let Err(error) = list.focus() {
+                                                                        diagnostics::warn_js("Unable to focus the result list.", &error);
+                                                                    }
+                                                                }
                                                                 menu.close();
                                                             }
                                                             on:dblclick=move |_| files.open(item_for_double.full_path.clone())
@@ -439,8 +457,14 @@ pub fn App() -> impl IntoView {
                                                             }
                                                         >
                                                             {match mode.visual_size() {
-                                                                Some(size) => view! {
-                                                                    <FileVisual path=item.full_path.clone() size />
+                                                                Some(visual_size) => view! {
+                                                                        <FileVisual
+                                                                            path=item.full_path.clone()
+                                                                            visual_size
+                                                                            file_size=item.size
+                                                                            modified_unix=item.modified_unix
+                                                                            load={index >= thumbnail_start && index < thumbnail_end}
+                                                                        />
                                                                 }.into_any(),
                                                                 None => view! {
                                                                     <span class="icon-result-visual">

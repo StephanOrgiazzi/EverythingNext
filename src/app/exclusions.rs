@@ -1,9 +1,9 @@
-use js_sys::{Function, Reflect};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use wasm_bindgen::{JsCast, JsValue};
 
+use super::browser_storage;
 use crate::backend;
+use crate::diagnostics;
 
 const STORAGE_KEY: &str = "everything-modern.excluded-folders";
 
@@ -198,33 +198,26 @@ fn is_unc_path(path: &str) -> bool {
     )
 }
 
-fn local_storage() -> Option<JsValue> {
-    let window = web_sys::window()?;
-    let storage = Reflect::get(window.as_ref(), &JsValue::from_str("localStorage")).ok()?;
-    (!storage.is_null() && !storage.is_undefined()).then_some(storage)
-}
-
 fn read_stored_folders() -> Vec<String> {
-    let Some(storage) = local_storage() else {
-        return Vec::new();
-    };
-    let Ok(get_item) = Reflect::get(&storage, &JsValue::from_str("getItem")) else {
-        return Vec::new();
-    };
-    let Ok(get_item) = get_item.dyn_into::<Function>() else {
-        return Vec::new();
-    };
-    let Ok(value) = get_item.call1(&storage, &JsValue::from_str(STORAGE_KEY)) else {
-        return Vec::new();
-    };
-    let Some(value) = value.as_string() else {
+    let Some(value) = browser_storage::read(STORAGE_KEY) else {
         return Vec::new();
     };
 
+    let stored = match serde_json::from_str::<Vec<String>>(&value) {
+        Ok(stored) => stored,
+        Err(error) => {
+            diagnostics::warn(&format!("Unable to parse stored excluded folders: {error}"));
+            return Vec::new();
+        }
+    };
     let mut folders = Vec::new();
-    for path in serde_json::from_str::<Vec<String>>(&value).unwrap_or_default() {
-        let Ok(path) = validated_path(&path) else {
-            continue;
+    for path in stored {
+        let path = match validated_path(&path) {
+            Ok(path) => path,
+            Err(error) => {
+                diagnostics::warn(&format!("Ignoring stored excluded folder: {error}"));
+                continue;
+            }
         };
         if !folders
             .iter()
@@ -237,24 +230,15 @@ fn read_stored_folders() -> Vec<String> {
 }
 
 fn write_stored_folders(folders: &[String]) {
-    let Some(storage) = local_storage() else {
-        return;
-    };
-    let Ok(set_item) = Reflect::get(&storage, &JsValue::from_str("setItem")) else {
-        return;
-    };
-    let Ok(set_item) = set_item.dyn_into::<Function>() else {
-        return;
-    };
-    let Ok(value) = serde_json::to_string(folders) else {
-        return;
+    let value = match serde_json::to_string(folders) {
+        Ok(value) => value,
+        Err(error) => {
+            diagnostics::warn(&format!("Unable to serialize excluded folders: {error}"));
+            return;
+        }
     };
 
-    let _ = set_item.call2(
-        &storage,
-        &JsValue::from_str(STORAGE_KEY),
-        &JsValue::from_str(&value),
-    );
+    browser_storage::write(STORAGE_KEY, &value);
 }
 
 #[cfg(test)]

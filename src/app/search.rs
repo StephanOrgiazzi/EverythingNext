@@ -202,7 +202,9 @@ impl SearchResults {
     }
 
     async fn register_debounced_backend_generation(self, generation: u32) -> bool {
-        backend::begin_generation(generation).await;
+        if let Err(message) = backend::begin_generation(generation).await {
+            self.error.set(Some(message));
+        }
         self.generation.get_untracked() == generation
     }
 }

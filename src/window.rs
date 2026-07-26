@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::*;
 
+use crate::diagnostics;
+
 #[wasm_bindgen(inline_js = r#"
 export async function everythingModernWindowAction(action) {
   const getCurrentWindow = window.__TAURI__?.window?.getCurrentWindow;
@@ -29,6 +31,11 @@ pub fn close() {
 
 fn spawn_action(action: &'static str) {
     wasm_bindgen_futures::spawn_local(async move {
-        let _ = window_action_js(action).await;
+        if let Err(error) = window_action_js(action).await {
+            diagnostics::warn_js(
+                &format!("Unable to perform window action '{action}'."),
+                &error,
+            );
+        }
     });
 }

@@ -74,8 +74,17 @@ fn rename_case_only_via_temporary_sibling(
     let temporary_sibling = unique_temporary_sibling(source)?;
     std::fs::rename(source, &temporary_sibling)?;
     if let Err(error) = std::fs::rename(&temporary_sibling, destination) {
-        let _ = std::fs::rename(&temporary_sibling, source);
-        return Err(ShellError::Io(error));
+        return match std::fs::rename(&temporary_sibling, source) {
+            Ok(()) => Err(ShellError::Io(error)),
+            Err(rollback_error) => Err(ShellError::Io(std::io::Error::new(
+                error.kind(),
+                format!(
+                    "rename failed: {error}; rollback from '{}' to '{}' also failed: {rollback_error}",
+                    temporary_sibling.display(),
+                    source.display()
+                ),
+            ))),
+        };
     }
     Ok(destination.to_path_buf())
 }

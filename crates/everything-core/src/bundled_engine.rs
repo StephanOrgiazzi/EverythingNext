@@ -81,10 +81,17 @@ impl ManagedEngine {
         if !self.instance_name.is_empty() {
             command.arg("-instance").arg(&self.instance_name);
         }
-        let _ = command
+        match command
             .arg("-quit")
             .creation_flags(CREATE_NO_WINDOW)
-            .status();
+            .status()
+        {
+            Ok(status) if !status.success() => {
+                eprintln!("Everything shutdown command exited with status {status}");
+            }
+            Err(error) => eprintln!("Unable to send the Everything shutdown command: {error}"),
+            Ok(_) => {}
+        }
 
         for _ in 0..40 {
             match child.try_wait() {
@@ -93,8 +100,12 @@ impl ManagedEngine {
             }
         }
 
-        let _ = child.kill();
-        let _ = child.wait();
+        if let Err(error) = child.kill() {
+            eprintln!("Unable to force-stop the bundled Everything process: {error}");
+        }
+        if let Err(error) = child.wait() {
+            eprintln!("Unable to reap the bundled Everything process: {error}");
+        }
     }
 
     fn inactive(executable: PathBuf, instance_name: String) -> Self {

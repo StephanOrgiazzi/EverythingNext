@@ -65,7 +65,9 @@ impl FileOperations {
         };
         self.trash.set(TrashWorkflow::Idle);
         spawn_local(async move {
-            backend::cancel_trash(pending.snapshot_id).await;
+            if let Err(message) = backend::cancel_trash(pending.snapshot_id).await {
+                self.error.set(Some(message));
+            }
         });
     }
 
@@ -157,7 +159,9 @@ impl FileOperations {
         };
         self.trash.set(TrashWorkflow::Idle);
         spawn_local(async move {
-            backend::cancel_trash(pending.snapshot_id).await;
+            if let Err(message) = backend::cancel_trash(pending.snapshot_id).await {
+                self.error.set(Some(message));
+            }
         });
     }
 

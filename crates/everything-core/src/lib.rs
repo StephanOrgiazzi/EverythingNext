@@ -92,14 +92,13 @@ impl EverythingEngine {
         }
     }
 
-    pub fn from_dll_path(path: impl AsRef<Path>) -> Result<Self, EngineError> {
+    pub fn from_dll_path(_path: impl AsRef<Path>) -> Result<Self, EngineError> {
         #[cfg(windows)]
         {
-            Self::with_dll_path(Some(path.as_ref().to_path_buf()))
+            Self::with_dll_path(Some(_path.as_ref().to_path_buf()))
         }
         #[cfg(not(windows))]
         {
-            let _ = path;
             Err(EngineError::UnsupportedPlatform)
         }
     }
@@ -131,14 +130,14 @@ impl EverythingEngine {
         }
     }
 
-    pub fn query(&mut self, request: QueryRequest) -> Result<SearchPage, EngineError> {
+    pub fn query(&mut self, _request: QueryRequest) -> Result<SearchPage, EngineError> {
         #[cfg(windows)]
         {
-            let first_result = self.query_once(request.clone());
+            let first_result = self.query_once(_request.clone());
             if let Err(error) = &first_result {
                 if error.is_reconnectable() {
                     self.invalidate_connection();
-                    let retry_result = self.query_once(request);
+                    let retry_result = self.query_once(_request);
                     if let Err(retry_error) = &retry_result {
                         if retry_error.is_reconnectable() {
                             self.invalidate_connection();
@@ -151,16 +150,15 @@ impl EverythingEngine {
         }
         #[cfg(not(windows))]
         {
-            let _ = request;
             Err(EngineError::UnsupportedPlatform)
         }
     }
 
     pub fn resolve_selection_cancellable<F>(
         &mut self,
-        request: SelectionRequest,
-        max_items: usize,
-        is_cancelled: F,
+        _request: SelectionRequest,
+        _max_items: usize,
+        _is_cancelled: F,
     ) -> Result<Vec<String>, EngineError>
     where
         F: FnMut() -> bool,
@@ -172,7 +170,7 @@ impl EverythingEngine {
                 let mut sdk = self.sdk.borrow_mut();
                 sdk.as_mut()
                     .expect("connected SDK3 is missing")
-                    .resolve_selection_cancellable(request, max_items, is_cancelled)
+                    .resolve_selection_cancellable(_request, _max_items, _is_cancelled)
             };
             if let Err(error) = &result {
                 if error.is_reconnectable() {
@@ -183,7 +181,6 @@ impl EverythingEngine {
         }
         #[cfg(not(windows))]
         {
-            let _ = (request, max_items, is_cancelled);
             Err(EngineError::UnsupportedPlatform)
         }
     }
