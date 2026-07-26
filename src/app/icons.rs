@@ -1,7 +1,15 @@
 use leptos::prelude::*;
 
 fn native(glyph: &'static str) -> AnyView {
-    view! { <span class="native-icon" aria-hidden="true">{glyph}</span> }.into_any()
+    view! {
+        <span
+            class="native-icon inline-grid size-[18px] shrink-0 place-items-center font-['Segoe_Fluent_Icons','Segoe_MDL2_Assets'] text-base font-normal not-italic leading-none"
+            aria-hidden="true"
+        >
+            {glyph}
+        </span>
+    }
+    .into_any()
 }
 
 pub(super) fn search() -> AnyView {

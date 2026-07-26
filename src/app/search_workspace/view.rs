@@ -97,7 +97,7 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
 
     view! {
         <main
-            class="app-shell"
+            class="app-shell grid h-screen grid-rows-[32px_48px_42px_minmax(0,1fr)] bg-[var(--bg)] outline-none"
             tabindex="0"
             on:keydown=on_keydown
             on:click=move |_| {
@@ -108,25 +108,25 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
             on:pointerup=move |event| columns.finish_resize(event)
             on:pointercancel=move |event| columns.finish_resize(event)
         >
-            <header class="titlebar" data-tauri-drag-region on:dblclick=move |_| window::toggle_maximize()>
-                <div class="app-mark" aria-hidden="true">
+            <header class="titlebar flex items-center gap-[9px] bg-[var(--header-bg)] pl-[10px]" data-tauri-drag-region on:dblclick=move |_| window::toggle_maximize()>
+                <div class="app-mark grid size-5 place-items-center bg-transparent text-[0] text-transparent shadow-none [&_svg]:size-5" aria-hidden="true">
                     <svg viewBox="0 0 256 256">
                         <rect x="14" y="14" width="228" height="228" rx="56" fill="#FFD76B"></rect>
                         <circle cx="108" cy="104" r="50" fill="none" stroke="#C95000" stroke-width="23"></circle>
                         <path d="M143.5 139.5 196 192" fill="none" stroke="#C95000" stroke-width="23" stroke-linecap="round"></path>
                     </svg>
                 </div>
-                <div class="app-title" data-tauri-drag-region>"Everything Modern"</div>
-                <div class="titlebar-spacer" data-tauri-drag-region></div>
-                <div class="window-controls" on:dblclick=move |event| event.stop_propagation()>
-                    <button class="window-control" title="Minimize" aria-label="Minimize" on:click=move |event| { event.stop_propagation(); window::minimize(); }>{icons::minimize()}</button>
-                    <button class="window-control" title="Maximize or restore" aria-label="Maximize or restore" on:click=move |event| { event.stop_propagation(); window::toggle_maximize(); }>{icons::maximize()}</button>
-                    <button class="window-control close" title="Close" aria-label="Close" on:click=move |event| { event.stop_propagation(); window::close(); }>{icons::close()}</button>
+                <div class="app-title text-xs font-semibold tracking-[.01em]" data-tauri-drag-region>"Everything Modern"</div>
+                <div class="titlebar-spacer h-full flex-1" data-tauri-drag-region></div>
+                <div class="window-controls flex self-stretch" on:dblclick=move |event| event.stop_propagation()>
+                    <button class="window-control grid h-full w-[46px] place-items-center rounded-none bg-transparent hover:bg-[var(--hover)] active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] [&>.native-icon]:size-3 [&>.native-icon]:pointer-events-none [&>.native-icon]:text-[10px]" title="Minimize" aria-label="Minimize" on:click=move |event| { event.stop_propagation(); window::minimize(); }>{icons::minimize()}</button>
+                    <button class="window-control grid h-full w-[46px] place-items-center rounded-none bg-transparent hover:bg-[var(--hover)] active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] [&>.native-icon]:size-3 [&>.native-icon]:pointer-events-none [&>.native-icon]:text-[10px]" title="Maximize or restore" aria-label="Maximize or restore" on:click=move |event| { event.stop_propagation(); window::toggle_maximize(); }>{icons::maximize()}</button>
+                    <button class="window-control close grid h-full w-[46px] place-items-center rounded-none bg-transparent hover:bg-[#c42b1c] hover:text-white active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] [&>.native-icon]:size-3 [&>.native-icon]:pointer-events-none [&>.native-icon]:text-[10px]" title="Close" aria-label="Close" on:click=move |event| { event.stop_propagation(); window::close(); }>{icons::close()}</button>
                 </div>
             </header>
 
-            <div class="search-toolbar" role="search">
-                <div class="search-box">
+            <div class="search-toolbar flex min-w-0 items-center bg-[var(--header-bg)] px-[10px] py-[6px]" role="search">
+                <div class="search-box flex h-[34px] w-full min-w-0 items-center gap-2 rounded border border-[var(--border-soft)] bg-[var(--search-bg)] px-[10px] focus-within:border-[var(--border-soft)] focus-within:shadow-none [&>.native-icon]:text-[var(--muted)] [&>input]:min-w-0 [&>input]:flex-1 [&>input]:select-text [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input::-webkit-search-cancel-button]:hidden">
                     {icons::search()}
                     <input
                         node_ref=search_ref
@@ -140,38 +140,38 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
                 </div>
             </div>
 
-            <section class="command-bar" aria-label="Commands">
-                <button class="command-button" title="Open" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+            <section class="command-bar relative z-10 flex items-center gap-0.5 border-y border-[var(--border)] border-t-[var(--border-soft)] bg-[var(--surface)] px-[10px] py-1 backdrop-blur-[20px] backdrop-saturate-[1.15]" aria-label="Commands">
+                <button class="command-button flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Open" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
                     if let Some(item) = selection.focused_item(results) {
                         files.open(item.full_path);
                     }
                 }>{icons::open()}<span>"Open"</span></button>
-                <button class="command-button" title="Show in Explorer" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+                <button class="command-button flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Show in Explorer" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
                     if let Some(item) = selection.focused_item(results) {
                         files.reveal(item.full_path);
                     }
                 }>{icons::folder_open()}<span>"Show in Explorer"</span></button>
-                <span class="command-separator"></span>
-                <button class="command-button danger-hover" title="Move to Recycle Bin" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| files.begin_trash(selection, results)>{icons::trash()}<span>"Delete"</span></button>
+                <span class="command-separator mx-[5px] h-5 w-px bg-[var(--border)]"></span>
+                <button class="command-button danger-hover flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:hover:text-[var(--danger)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Move to Recycle Bin" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| files.begin_trash(selection, results)>{icons::trash()}<span>"Delete"</span></button>
                 <ViewSwitcher viewport open=view_menu_open />
             </section>
 
-            <div class="workspace">
-                <aside class="sidebar">
+            <div class="workspace grid min-h-0 grid-cols-[204px_minmax(0,1fr)] max-[850px]:grid-cols-[58px_minmax(0,1fr)]">
+                <aside class="sidebar flex min-h-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar-bg)] px-[6px] py-2 max-[850px]:items-center">
                     <SidebarItem label="All files" icon=icons::home() item_query="*" query />
                     <SidebarItem label="Modified today" icon=icons::clock() item_query="dm:today" query />
-                    <div class="sidebar-separator"></div>
-                    <div class="sidebar-section-label">"Types"</div>
+                    <div class="sidebar-separator mx-[10px] mb-0.5 mt-[7px] h-px bg-[var(--border-soft)]"></div>
+                    <div class="sidebar-section-label px-[10px] pb-[5px] pt-[9px] text-[11px] font-semibold text-[var(--muted)] max-[850px]:hidden">"Types"</div>
                     <SidebarItem label="Documents" icon=icons::document() item_query="ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" query />
                     <SidebarItem label="Images" icon=icons::image() item_query="ext:png;jpg;jpeg;webp;gif;svg;avif" query />
                     <SidebarItem label="Videos" icon=icons::video() item_query="ext:mp4;mkv;avi;mov;webm" query />
                     <SidebarItem label="Audio" icon=icons::audio() item_query="ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi" query />
                     <SidebarItem label="Archives" icon=icons::archive() item_query="ext:zip;7z;rar;tar;gz" query />
-                    <div class="sidebar-spacer" aria-hidden="true"></div>
-                    <div class="sidebar-separator"></div>
+                    <div class="sidebar-spacer flex-1" aria-hidden="true"></div>
+                    <div class="sidebar-separator mx-[10px] mb-0.5 mt-[7px] h-px bg-[var(--border-soft)]"></div>
                     <button
                         type="button"
-                        class="sidebar-item settings-sidebar-item"
+                        class="sidebar-item settings-sidebar-item relative grid h-8 w-full grid-cols-[20px_minmax(0,1fr)] items-center gap-[10px] rounded-[5px] bg-transparent px-[9px] text-left hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] [&_.native-icon]:size-5 [&_.native-icon]:translate-y-px [&_.native-icon]:text-base [&_.native-icon]:text-[var(--muted)] [&>span:not(.native-icon)]:min-w-0 [&>span:not(.native-icon)]:leading-5 max-[850px]:w-[38px] max-[850px]:grid-cols-[20px] max-[850px]:justify-center max-[850px]:px-0 max-[850px]:[&>span]:hidden"
                         title="Settings"
                         aria-haspopup="dialog"
                         aria-expanded=move || settings_open.get()
@@ -202,7 +202,7 @@ fn SidebarItem(
 ) -> impl IntoView {
     view! {
         <button
-            class="sidebar-item"
+            class="sidebar-item relative grid h-8 w-full grid-cols-[20px_minmax(0,1fr)] items-center gap-[10px] rounded-[5px] bg-transparent px-[9px] text-left before:absolute before:left-px before:h-4 before:w-[3px] before:rounded-sm before:bg-[var(--accent)] before:content-[''] before:hidden hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] [&.active]:bg-[var(--hover)] [&.active]:before:block [&.active_.native-icon]:text-[var(--text)] [&_.native-icon]:size-5 [&_.native-icon]:text-base [&_.native-icon]:text-[var(--muted)] [&>span:not(.native-icon)]:min-w-0 [&>span:not(.native-icon)]:leading-5 max-[850px]:w-[38px] max-[850px]:grid-cols-[20px] max-[850px]:justify-center max-[850px]:px-0 max-[850px]:before:left-0 max-[850px]:[&>span]:hidden"
             class:active=move || query.get() == item_query
             on:click=move |_| query.set(item_query.into())
         >

@@ -63,12 +63,12 @@ impl ThemeState {
 )]
 pub(in crate::app) fn ThemeSetting(state: ThemeState) -> impl IntoView {
     view! {
-        <div class="theme-setting">
-            <p class="settings-description">"Choose the app appearance."</p>
-            <div class="theme-options" role="group" aria-label="Theme">
+        <div class="theme-setting flex items-center justify-between gap-6 max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:gap-[10px]">
+            <p class="settings-description text-xs text-[var(--muted)]">"Choose the app appearance."</p>
+            <div class="theme-options flex shrink-0 rounded-[7px] border border-[var(--border)] bg-[var(--surface-2)] p-0.5 max-[560px]:self-start" role="group" aria-label="Theme">
                 <button
                     type="button"
-                    class="theme-option"
+                    class="theme-option h-7 min-w-[62px] rounded-[5px] bg-transparent px-[10px] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)] focus-visible:bg-[var(--hover)] [&.active]:bg-[var(--surface-solid)] [&.active]:text-[var(--text)] [&.active]:shadow-[0_1px_3px_rgba(0,0,0,.12)]"
                     class:active=move || state.current() == Theme::Light
                     aria-pressed=move || state.current() == Theme::Light
                     on:click=move |_| state.set(Theme::Light)
@@ -77,7 +77,7 @@ pub(in crate::app) fn ThemeSetting(state: ThemeState) -> impl IntoView {
                 </button>
                 <button
                     type="button"
-                    class="theme-option"
+                    class="theme-option h-7 min-w-[62px] rounded-[5px] bg-transparent px-[10px] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)] focus-visible:bg-[var(--hover)] [&.active]:bg-[var(--surface-solid)] [&.active]:text-[var(--text)] [&.active]:shadow-[0_1px_3px_rgba(0,0,0,.12)]"
                     class:active=move || state.current() == Theme::Dark
                     aria-pressed=move || state.current() == Theme::Dark
                     on:click=move |_| state.set(Theme::Dark)

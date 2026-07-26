@@ -172,20 +172,20 @@ impl ResultColumns {
 #[component]
 pub(crate) fn ColumnHeaders(columns: ResultColumns, sort: RwSignal<SortSpec>) -> impl IntoView {
     view! {
-        <div class="column-header" node_ref=columns.header_ref>
-            <div class="column-heading col-name">
+        <div class="column-header grid w-[var(--grid-width,100%)] border-b border-[var(--border)] bg-[var(--surface-2)]" node_ref=columns.header_ref>
+            <div class="column-heading col-name relative min-w-0 border-r border-[var(--border-soft)]">
                 <SortHeader label="Name" column=SortColumn::Name sort />
                 <ColumnResizer boundary=ColumnBoundary::NamePath columns />
             </div>
-            <div class="column-heading col-path">
+            <div class="column-heading col-path relative min-w-0 border-r border-[var(--border-soft)]">
                 <SortHeader label="Path" column=SortColumn::Path sort />
                 <ColumnResizer boundary=ColumnBoundary::PathSize columns />
             </div>
-            <div class="column-heading col-size">
+            <div class="column-heading col-size relative min-w-0 border-r border-[var(--border-soft)]">
                 <SortHeader label="Size" column=SortColumn::Size sort />
                 <ColumnResizer boundary=ColumnBoundary::SizeDate columns />
             </div>
-            <div class="column-heading col-date">
+            <div class="column-heading col-date relative min-w-0 border-r border-[var(--border-soft)]">
                 <SortHeader label="Date modified" column=SortColumn::Modified sort />
             </div>
         </div>
@@ -195,7 +195,7 @@ pub(crate) fn ColumnHeaders(columns: ResultColumns, sort: RwSignal<SortSpec>) ->
 #[component]
 fn SortHeader(label: &'static str, column: SortColumn, sort: RwSignal<SortSpec>) -> impl IntoView {
     view! {
-        <button class="column-button" on:click=move |_| {
+        <button class="column-button flex size-full min-w-0 items-center gap-[5px] bg-transparent px-[10px] text-left text-xs text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)] focus-visible:bg-[var(--hover)]" on:click=move |_| {
             sort.update(|current| {
                 if current.column == column {
                     current.direction = current.direction.toggle();
@@ -206,7 +206,7 @@ fn SortHeader(label: &'static str, column: SortColumn, sort: RwSignal<SortSpec>)
             });
         }>
             <span>{label}</span>
-            <span class="sort-arrow" class:visible=move || sort.get().column == column>
+            <span class="sort-arrow text-[var(--accent)] opacity-0 [&.visible]:opacity-100" class:visible=move || sort.get().column == column>
                 {move || if sort.get().direction == SortDirection::Ascending { "↑" } else { "↓" }}
             </span>
         </button>

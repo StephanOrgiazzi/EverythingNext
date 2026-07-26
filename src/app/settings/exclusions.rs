@@ -74,13 +74,14 @@ pub(in crate::app) fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> imp
     };
 
     view! {
-        <div class="excluded-folders-setting">
-            <p class="settings-description">
+        <div class="excluded-folders-setting grid gap-3">
+            <p class="settings-description m-0 text-xs text-[var(--muted)]">
                 "Folders excluded here are omitted from search results."
             </p>
 
-            <div class="excluded-folder-controls">
+            <div class="excluded-folder-controls flex gap-2">
                 <button
+                    class="h-[34px] rounded-[7px] border border-[var(--accent)] bg-[var(--accent)] px-[14px] text-white enabled:hover:brightness-[1.08] focus-visible:brightness-[1.12] disabled:opacity-65"
                     type="button"
                     disabled=move || is_picking.get()
                     aria-describedby="excluded-folder-error"
@@ -90,7 +91,7 @@ pub(in crate::app) fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> imp
                 </button>
             </div>
             <Show when=move || validation_error.get().is_some()>
-                <p id="excluded-folder-error" class="settings-error" role="alert">
+                <p id="excluded-folder-error" class="settings-error m-0 text-xs text-[var(--danger)]" role="alert">
                     {move || validation_error.get().unwrap_or_default()}
                 </p>
             </Show>
@@ -99,20 +100,21 @@ pub(in crate::app) fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> imp
                 when=move || !state.folders.get().is_empty()
                 fallback=|| {
                     view! {
-                        <p class="excluded-folders-empty">"No folders are excluded."</p>
+                        <p class="excluded-folders-empty m-0 rounded-[7px] border border-dashed border-[var(--border)] p-[10px] text-center text-[var(--muted)]">"No folders are excluded."</p>
                     }
                 }
             >
-                <ul class="excluded-folders-list">
+                <ul class="excluded-folders-list m-0 grid max-h-[180px] list-none gap-1 overflow-auto p-0">
                     <For
                         each=move || state.folders.get()
                         key=|path| path.to_ascii_lowercase()
                         children=move |path| {
                             let path_to_remove = path.clone();
                             view! {
-                                <li>
-                                    <span title=path.clone()>{path.clone()}</span>
+                                <li class="flex min-w-0 items-center gap-2 rounded-[7px] border border-[var(--border-soft)] bg-[var(--surface-2)] py-[7px] pl-[10px] pr-2">
+                                    <span class="min-w-0 flex-1 select-text overflow-hidden text-ellipsis whitespace-nowrap" title=path.clone()>{path.clone()}</span>
                                     <button
+                                        class="h-[26px] rounded-[5px] bg-transparent px-2 text-[var(--danger)] hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]"
                                         type="button"
                                         aria-label="Remove excluded folder"
                                         on:click=move |_| state.remove(&path_to_remove)

@@ -61,7 +61,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
 
     view! {
         <section
-            class="results-panel"
+            class="results-panel relative [&.icon-view]:grid-rows-[minmax(0,1fr)_24px] [&.icon-view_.column-header]:hidden [&.icon-view_.results-scroll]:row-start-1 [&.icon-view_.statusbar]:row-start-2"
             class:icon-view=move || viewport.mode.get().is_grid()
             class:resizing-columns=move || columns.is_resizing()
             data-view-mode=move || viewport.mode.get().key()
@@ -70,7 +70,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
             <ColumnHeaders columns sort />
 
             <div
-                class="results-scroll"
+                class="results-scroll focus-visible:shadow-none"
                 node_ref=list_ref
                 tabindex="0"
                 role="grid"
@@ -92,7 +92,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 }
             >
                 <div
-                    class="virtual-canvas"
+                    class="virtual-canvas min-h-full min-w-0"
                     class:icon-virtual-canvas=move || viewport.mode.get().is_grid()
                     role="presentation"
                     style:height=move || format!("{}px", viewport.canvas_height(total.get()))
@@ -116,7 +116,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                         if mode == ViewMode::Details {
                                             view! {
                                                 <div
-                                                    class="result-row"
+                                                    class="result-row [&.focused]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--muted)_55%,transparent)]"
                                                     data-full-path=item.full_path.clone()
                                                     class:selected=move || selected.with(|selection| selection.contains(index))
                                                     class:focused=move || focused_index.get() == Some(index)
@@ -181,7 +181,11 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                             };
                                             view! {
                                                 <div
-                                                    class=format!("icon-result icon-result-{}", mode.key())
+                                                    class=format!(
+                                                        "icon-result icon-result-{} {} absolute flex min-w-0 overflow-hidden rounded-md border border-transparent bg-transparent will-change-transform hover:bg-[var(--hover)] [&.focused]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--muted)_55%,transparent)] [&.selected]:border-[var(--selected-border)] [&.selected]:bg-[var(--selected)] [&_.file-icon]:size-[var(--view-icon-size)] [&_.file-icon_img]:size-[var(--view-icon-size)] [&_.file-icon_img]:object-contain",
+                                                        mode.key(),
+                                                        mode.utility_classes(),
+                                                    )
                                                     class:selected=move || selected.with(|selection| selection.contains(index))
                                                     class:focused=move || focused_index.get() == Some(index)
                                                     style=item_style
@@ -225,14 +229,14 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                                                 />
                                                         }.into_any(),
                                                         None => view! {
-                                                            <span class="icon-result-visual">
+                                                            <span class="icon-result-visual grid shrink-0 place-items-center">
                                                                 <FileIcon path=item.full_path.clone() />
                                                             </span>
                                                         }.into_any(),
                                                     }}
-                                                    <div class="icon-result-text">
-                                                        <span class="icon-result-name">{item.name.clone()}</span>
-                                                        <span class="icon-result-metadata">{metadata}</span>
+                                                    <div class="icon-result-text flex min-w-0 flex-col gap-0.5 overflow-hidden">
+                                                        <span class="icon-result-name block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[var(--text)]">{item.name.clone()}</span>
+                                                        <span class="icon-result-metadata block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--muted)]">{metadata}</span>
                                                     </div>
                                                 </div>
                                             }.into_any()
@@ -248,14 +252,18 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                         }.into_any(),
                                     None => view! {
                                             <div
-                                                class=format!("icon-result icon-result-{} skeleton-tile", mode.key())
+                                                class=format!(
+                                                    "icon-result icon-result-{} skeleton-tile {} pointer-events-none absolute flex min-w-0 overflow-hidden rounded-md border border-transparent bg-transparent will-change-transform [&_.file-icon]:size-[var(--view-icon-size)] [&_.file-icon_img]:size-[var(--view-icon-size)] [&_.file-icon_img]:object-contain",
+                                                    mode.key(),
+                                                    mode.utility_classes(),
+                                                )
                                                 style=viewport.item_style(index)
                                                 role="gridcell"
                                                 aria-rowindex=index / columns + 1
                                                 aria-colindex=index % columns + 1
                                             >
-                                                <span class="icon-tile-skeleton icon-tile-skeleton-icon"></span>
-                                                <span class="icon-tile-skeleton icon-tile-skeleton-label"></span>
+                                                <span class="icon-tile-skeleton icon-tile-skeleton-icon block size-[var(--view-icon-size,48px)] shrink-0 animate-[shimmer_1.4s_linear_infinite] rounded-lg bg-[linear-gradient(90deg,var(--hover),color-mix(in_srgb,var(--hover)_45%,transparent),var(--hover))] bg-[length:200%_100%]"></span>
+                                                <span class="icon-tile-skeleton icon-tile-skeleton-label block h-[9px] w-[min(140px,70%)] rounded-full"></span>
                                             </div>
                                         }.into_any(),
                                 }
@@ -280,31 +288,31 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 </Show>
                 <Show when=move || search_error.get().is_some()>
                     {move || search_error.get().map(|message| view! {
-                        <div class="error-banner" role="alert">
+                        <div class="error-banner absolute left-1/2 top-6 flex w-[min(540px,calc(100%_-_48px))] -translate-x-1/2 gap-3 rounded-[9px] border border-[color-mix(in_srgb,var(--danger)_38%,var(--border))] bg-[color-mix(in_srgb,var(--surface-solid)_92%,var(--danger))] px-[15px] py-[13px] text-[var(--danger)] shadow-[var(--shadow)] [&_span]:text-xs [&_span]:text-[var(--text)]" role="alert">
                             <span>{message}</span>
-                            <button class="banner-close" title="Close" aria-label="Close" on:click=move |_| search_error.set(None)>{icons::close()}</button>
+                            <button class="banner-close focus-visible:bg-[var(--hover)]" title="Close" aria-label="Close" on:click=move |_| search_error.set(None)>{icons::close()}</button>
                         </div>
                     })}
                 </Show>
 
                 <Show when=move || error.get().is_some()>
-                    <div class="error-banner" role="alert">
+                    <div class="error-banner absolute left-1/2 top-6 flex w-[min(540px,calc(100%_-_48px))] -translate-x-1/2 gap-3 rounded-[9px] border border-[color-mix(in_srgb,var(--danger)_38%,var(--border))] bg-[color-mix(in_srgb,var(--surface-solid)_92%,var(--danger))] px-[15px] py-[13px] text-[var(--danger)] shadow-[var(--shadow)] [&>div]:grid [&>div]:gap-[3px] [&_span]:text-xs [&_span]:text-[var(--text)]" role="alert">
                         {icons::warning()}
                         <div><strong>"An operation failed"</strong><span>{move || error.get().unwrap_or_default()}</span></div>
-                        <button class="banner-close" title="Close" aria-label="Close" on:click=move |_| error.set(None)>{icons::close()}</button>
+                        <button class="banner-close focus-visible:bg-[var(--hover)]" title="Close" aria-label="Close" on:click=move |_| error.set(None)>{icons::close()}</button>
                     </div>
                 </Show>
             </div>
 
-            <footer class="statusbar">
+            <footer class="statusbar flex items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[11px] text-[var(--muted)]">
                 <span>{move || result_count(total.get())}</span>
-                <span class="status-separator"></span>
+                <span class="status-separator h-3 w-px bg-[var(--border)]"></span>
                 <span>{move || format!("{} selected", selected.with(IndexSelection::count))}</span>
                 <Show when=move || !engine_available.get()>
-                    <span class="status-separator"></span>
-                    <span class="connection-warning" title=move || engine_message.get()>"Everything unavailable"</span>
+                    <span class="status-separator h-3 w-px bg-[var(--border)]"></span>
+                    <span class="connection-warning text-[var(--danger)]" title=move || engine_message.get()>"Everything unavailable"</span>
                 </Show>
-                <span class="statusbar-spacer"></span>
+                <span class="statusbar-spacer flex-1"></span>
                 <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Searching…"</span></Show>
             </footer>
         </section>
@@ -327,7 +335,7 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
     view! {
         <Show when=move || context_menu.get().is_some()>
             {move || context_menu.get().map(|menu| view! {
-                <div class="context-menu" style:left=format!("{}px", menu.x) style:top=format!("{}px", menu.y) on:click=move |event| event.stop_propagation()>
+                <div class="context-menu fixed z-[100] w-[260px] rounded-[9px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-solid)_94%,transparent)] p-[5px] shadow-[var(--shadow)] backdrop-blur-[28px] backdrop-saturate-[1.3]" style:left=format!("{}px", menu.x) style:top=format!("{}px", menu.y) on:click=move |event| event.stop_propagation()>
                     <ContextAction icon=icons::open() label="Open" shortcut="Enter" on_click={
                         let path = menu.item.full_path.clone();
                         move || { files.open(path.clone()); context_menu.set(None); }
@@ -336,7 +344,7 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
                         let path = menu.item.full_path.clone();
                         move || { files.reveal(path.clone()); context_menu.set(None); }
                     } />
-                    <div class="context-separator"></div>
+                    <div class="context-separator mx-[7px] my-1 h-px bg-[var(--border)]"></div>
                     <ContextAction icon=icons::copy() label="Copy name" shortcut="" on_click={
                         let name = menu.item.name.clone();
                         move || { files.copy(name.clone()); context_menu.set(None); }
@@ -353,7 +361,7 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
                         let item = menu.item.clone();
                         move || { files.begin_rename(item.clone()); context_menu.set(None); }
                     } />
-                    <div class="context-separator"></div>
+                    <div class="context-separator mx-[7px] my-1 h-px bg-[var(--border)]"></div>
                     <ContextAction danger=true icon=icons::trash() label="Move to Recycle Bin" shortcut="Del" on_click=move || { files.begin_trash(selection, results); context_menu.set(None); } />
                 </div>
             })}
@@ -363,7 +371,11 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
 
 #[component]
 fn EmptyState(icon: AnyView, title: &'static str, message: &'static str) -> impl IntoView {
-    view! { <div class="empty-state">{icon}<h2>{title}</h2><p>{message}</p></div> }
+    view! {
+        <div class="empty-state pointer-events-none absolute inset-0 grid place-content-center justify-items-center p-10 text-center text-[var(--muted)] [&>.native-icon]:mb-3 [&>.native-icon]:h-[46px] [&>.native-icon]:w-[46px] [&>.native-icon]:text-[42px] [&>.native-icon]:text-[color-mix(in_srgb,var(--muted)_70%,transparent)] [&>h2]:mb-[5px] [&>h2]:text-[17px] [&>h2]:font-semibold [&>h2]:text-[var(--text)] [&>p]:max-w-[430px] [&>p]:leading-[1.5]">
+            {icon}<h2>{title}</h2><p>{message}</p>
+        </div>
+    }
 }
 
 #[component]
@@ -378,7 +390,12 @@ where
     F: Fn() + Send + Sync + 'static,
 {
     view! {
-        <button class="context-action" class:danger=danger on:click=move |_| on_click()>
+        <button
+            class="context-action grid h-[34px] w-full grid-cols-[22px_1fr_auto] items-center gap-2 rounded-[5px] bg-transparent px-2 text-left hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] [&>kbd]:border-0 [&>kbd]:bg-transparent"
+            class:danger=danger
+            class=("text-[var(--danger)]", danger)
+            on:click=move |_| on_click()
+        >
             {icon}<span>{label}</span><kbd>{shortcut}</kbd>
         </button>
     }

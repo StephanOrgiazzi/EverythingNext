@@ -4,6 +4,10 @@
 # Trunk build output
 /dist/
 
+# Locally downloaded Tailwind CLI and generated stylesheet
+/.tools/
+/assets/tailwind.generated.css
+
 # Tauri-generated schemas
 /src-tauri/gen/
 

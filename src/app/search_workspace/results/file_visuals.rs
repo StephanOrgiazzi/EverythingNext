@@ -33,7 +33,7 @@ pub(crate) fn FileIcon(path: String) -> impl IntoView {
     });
 
     view! {
-        <span class="file-icon">
+        <span class="file-icon grid size-5 place-items-center [&>img]:size-5 [&>img]:object-contain">
             {move || source.get().map(|source| view! {
                 <img src=source alt="" loading="lazy" decoding="async" />
             })}
@@ -66,11 +66,11 @@ pub(crate) fn FileVisual(
         let source = subscription.source;
         let animate_reveal = subscription.animate_reveal;
         view! {
-            <span class="icon-result-visual thumbnail-stack">
+            <span class="icon-result-visual thumbnail-stack grid size-[var(--view-icon-size)] shrink-0 place-items-center [&>*]:[grid-area:1/1]">
                 <FileIcon path=path />
                 {move || source.get().flatten().map(|source| view! {
                     <img
-                        class="file-visual-image"
+                        class="file-visual-image size-full object-contain"
                         class:thumbnail-reveal=animate_reveal
                         src=source
                         alt=""
@@ -83,8 +83,8 @@ pub(crate) fn FileVisual(
         .into_any()
     } else {
         view! {
-            <span class="icon-result-visual">
-                <span class="file-visual-placeholder" aria-hidden="true"></span>
+            <span class="icon-result-visual grid size-[var(--view-icon-size)] shrink-0 place-items-center">
+                <span class="file-visual-placeholder h-[76%] w-[62%] rounded-[5px] border border-[color-mix(in_srgb,var(--muted)_38%,transparent)] bg-[color-mix(in_srgb,var(--hover)_55%,transparent)]" aria-hidden="true"></span>
             </span>
         }
         .into_any()

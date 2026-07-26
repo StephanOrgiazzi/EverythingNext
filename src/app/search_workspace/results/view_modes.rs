@@ -79,6 +79,21 @@ impl ViewMode {
         }
     }
 
+    pub fn utility_classes(self) -> &'static str {
+        match self {
+            Self::Details => "",
+            Self::Small => {
+                "[--view-icon-size:24px] flex-row items-center gap-2.5 px-2.5 py-[5px] [&_.icon-result-text]:flex-1 [&_.icon-result-text]:items-start [&_.icon-result-text]:text-left"
+            }
+            Self::Medium => {
+                "[--view-icon-size:64px] flex-col items-center justify-center gap-2 px-2 pt-2.5 pb-2 text-center [&_.icon-result-text]:w-full [&_.icon-result-text]:items-center"
+            }
+            Self::Large => {
+                "[--view-icon-size:96px] flex-col items-center justify-center gap-3 px-2.5 pt-3.5 pb-2.5 text-center [&_.icon-result-text]:w-full [&_.icon-result-text]:items-center [&_.icon-result-metadata]:hidden"
+            }
+        }
+    }
+
     fn icon_path(self) -> &'static str {
         match self {
             Self::Details => {
@@ -122,12 +137,12 @@ pub(crate) fn ViewSwitcher(viewport: ResultViewport, open: RwSignal<bool>) -> im
     };
 
     view! {
-        <span class="command-bar-spacer" aria-hidden="true"></span>
-        <div class="view-switcher">
+        <span class="flex-1" aria-hidden="true"></span>
+        <div class="relative ml-auto shrink-0">
             <button
                 node_ref=trigger_ref
                 type="button"
-                class="command-button view-button"
+                class="command-button flex h-8 min-w-28 items-center justify-start gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] max-[850px]:w-9 max-[850px]:min-w-9 max-[850px]:justify-center max-[850px]:p-0"
                 aria-haspopup="menu"
                 aria-expanded=move || open.get()
                 aria-label=move || format!(
@@ -157,15 +172,15 @@ pub(crate) fn ViewSwitcher(viewport: ResultViewport, open: RwSignal<bool>) -> im
                     }
                 }
             >
-                {move || view_mode_icon(viewport.mode.get(), "view-button-icon")}
-                <span class="view-button-label">{move || viewport.mode.get().label()}</span>
-                <svg class="view-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                {move || view_mode_icon(viewport.mode.get(), "size-[17px]")}
+                <span class="overflow-hidden text-ellipsis whitespace-nowrap max-[850px]:hidden">{move || viewport.mode.get().label()}</span>
+                <svg class="ml-auto size-3 text-[var(--muted)] max-[850px]:hidden" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="m7 9 5 5 5-5 1.4 1.4-6.4 6.4-6.4-6.4L7 9Z"></path>
                 </svg>
             </button>
 
             <div
-                class="view-menu"
+                class="absolute top-[calc(100%+6px)] right-0 z-[150] w-56 rounded-[9px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-solid)_94%,transparent)] p-[5px] shadow-[var(--shadow)] backdrop-blur-[28px] backdrop-saturate-[1.3] [&[hidden]]:hidden max-[850px]:right-[-4px]"
                 role="menu"
                 hidden=move || !open.get()
                 on:click=move |event| event.stop_propagation()
@@ -178,7 +193,7 @@ pub(crate) fn ViewSwitcher(viewport: ResultViewport, open: RwSignal<bool>) -> im
                             <button
                                 id=format!("view-option-{index}")
                                 type="button"
-                                class="view-option"
+                                class="view-option grid h-9 w-full grid-cols-[24px_minmax(0,1fr)_18px] items-center gap-2 rounded-[5px] bg-transparent px-2 text-left hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] [&.active]:bg-[var(--accent-soft)] [&.active_.view-option-check]:opacity-100"
                                 class:active=move || viewport.mode.get() == mode
                                 role="menuitemradio"
                                 aria-checked=move || viewport.mode.get() == mode
@@ -191,9 +206,9 @@ pub(crate) fn ViewSwitcher(viewport: ResultViewport, open: RwSignal<bool>) -> im
                                     handle_option_key(event, index, open, trigger_ref);
                                 }
                             >
-                                {view_mode_icon(mode, "view-option-icon")}
+                                {view_mode_icon(mode, "size-[17px]")}
                                 <span>{mode.label()}</span>
-                                <span class="view-option-check" aria-hidden="true">"✓"</span>
+                                <span class="view-option-check font-bold text-[var(--accent)] opacity-0" aria-hidden="true">"✓"</span>
                             </button>
                         }
                     })
