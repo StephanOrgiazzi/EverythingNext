@@ -1,0 +1,212 @@
+use super::file_actions::{FileActionDialogs, FileOperations};
+use super::keyboard::KeyboardContext;
+use super::results::{
+    ResultColumns, ResultContextMenu, ResultContextMenuView, ResultSelection, ResultViewport,
+    ResultsView, ResultsViewContext, ViewSwitcher,
+};
+use super::search::SearchResults;
+use crate::app::icons;
+use crate::app::settings::{ExcludedFoldersState, SettingsDialog, ThemeState};
+use crate::{backend, window};
+use gloo_timers::future::TimeoutFuture;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlInputElement;
+
+#[component]
+#[allow(
+    non_snake_case,
+    reason = "Leptos components conventionally use PascalCase names"
+)]
+pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
+    let excluded_folders = ExcludedFoldersState::new();
+    let results = SearchResults::new(excluded_folders.folders);
+    let selection = ResultSelection::new();
+    let files = FileOperations::new();
+    let menu = ResultContextMenu::new();
+    let columns = ResultColumns::new();
+    let theme = ThemeState::new();
+
+    let query = results.query;
+    let total = results.total;
+    let selected = selection.indices;
+
+    let viewport = ResultViewport::new();
+    let engine_message = RwSignal::new("Connecting to Everything…".to_string());
+    let engine_available = RwSignal::new(false);
+    let settings_open = RwSignal::new(false);
+    let view_menu_open = RwSignal::new(false);
+    let search_ref = NodeRef::<leptos::html::Input>::new();
+
+    spawn_local(async move {
+        loop {
+            let status = backend::status().await;
+            engine_available.set(status.available);
+            engine_message.set(status.message);
+            TimeoutFuture::new(3_000).await;
+        }
+    });
+
+    viewport.monitor_dimensions();
+
+    let visible_start = viewport.visible_start();
+    let visible_end = viewport.visible_end(visible_start, total);
+    let viewport_start = viewport.viewport_start();
+    let viewport_end = viewport.viewport_end(total);
+    results.monitor(visible_start, visible_end, move || {
+        selection.clear();
+        files.reset_for_new_search();
+        viewport.reset_scroll();
+    });
+
+    let results_view = ResultsViewContext {
+        results,
+        selection,
+        files,
+        menu,
+        columns,
+        viewport,
+        visible_start,
+        visible_end,
+        viewport_start,
+        viewport_end,
+        engine_available,
+        engine_message,
+    };
+
+    let on_search_input = move |event: web_sys::Event| {
+        if let Some(input) = event
+            .target()
+            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+        {
+            query.set(input.value());
+        }
+    };
+
+    let keyboard = KeyboardContext {
+        settings_open,
+        search_ref,
+        selection,
+        results,
+        viewport,
+        files,
+        menu,
+    };
+    let on_keydown = move |event| keyboard.handle_keydown(event);
+
+    view! {
+        <main
+            class="app-shell"
+            tabindex="0"
+            on:keydown=on_keydown
+            on:click=move |_| {
+                menu.close();
+                view_menu_open.set(false);
+            }
+            on:pointermove=move |event| columns.update_resize(event)
+            on:pointerup=move |event| columns.finish_resize(event)
+            on:pointercancel=move |event| columns.finish_resize(event)
+        >
+            <header class="titlebar" data-tauri-drag-region on:dblclick=move |_| window::toggle_maximize()>
+                <div class="app-mark" aria-hidden="true">
+                    <svg viewBox="0 0 256 256">
+                        <rect x="14" y="14" width="228" height="228" rx="56" fill="#FFD76B"></rect>
+                        <circle cx="108" cy="104" r="50" fill="none" stroke="#C95000" stroke-width="23"></circle>
+                        <path d="M143.5 139.5 196 192" fill="none" stroke="#C95000" stroke-width="23" stroke-linecap="round"></path>
+                    </svg>
+                </div>
+                <div class="app-title" data-tauri-drag-region>"Everything Modern"</div>
+                <div class="titlebar-spacer" data-tauri-drag-region></div>
+                <div class="window-controls" on:dblclick=move |event| event.stop_propagation()>
+                    <button class="window-control" title="Minimize" aria-label="Minimize" on:click=move |event| { event.stop_propagation(); window::minimize(); }>{icons::minimize()}</button>
+                    <button class="window-control" title="Maximize or restore" aria-label="Maximize or restore" on:click=move |event| { event.stop_propagation(); window::toggle_maximize(); }>{icons::maximize()}</button>
+                    <button class="window-control close" title="Close" aria-label="Close" on:click=move |event| { event.stop_propagation(); window::close(); }>{icons::close()}</button>
+                </div>
+            </header>
+
+            <div class="search-toolbar" role="search">
+                <div class="search-box">
+                    {icons::search()}
+                    <input
+                        node_ref=search_ref
+                        type="search"
+                        placeholder="Search Everything"
+                        prop:value=move || query.get()
+                        on:input=on_search_input
+                        autofocus
+                    />
+                    <kbd>"Ctrl L"</kbd>
+                </div>
+            </div>
+
+            <section class="command-bar" aria-label="Commands">
+                <button class="command-button" title="Open" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+                    if let Some(item) = selection.focused_item(results) {
+                        files.open(item.full_path);
+                    }
+                }>{icons::open()}<span>"Open"</span></button>
+                <button class="command-button" title="Show in Explorer" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+                    if let Some(item) = selection.focused_item(results) {
+                        files.reveal(item.full_path);
+                    }
+                }>{icons::folder_open()}<span>"Show in Explorer"</span></button>
+                <span class="command-separator"></span>
+                <button class="command-button danger-hover" title="Move to Recycle Bin" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| files.begin_trash(selection, results)>{icons::trash()}<span>"Delete"</span></button>
+                <ViewSwitcher viewport open=view_menu_open />
+            </section>
+
+            <div class="workspace">
+                <aside class="sidebar">
+                    <SidebarItem label="All files" icon=icons::home() item_query="*" query />
+                    <SidebarItem label="Modified today" icon=icons::clock() item_query="dm:today" query />
+                    <div class="sidebar-separator"></div>
+                    <div class="sidebar-section-label">"Types"</div>
+                    <SidebarItem label="Documents" icon=icons::document() item_query="ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" query />
+                    <SidebarItem label="Images" icon=icons::image() item_query="ext:png;jpg;jpeg;webp;gif;svg;avif" query />
+                    <SidebarItem label="Videos" icon=icons::video() item_query="ext:mp4;mkv;avi;mov;webm" query />
+                    <SidebarItem label="Audio" icon=icons::audio() item_query="ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi" query />
+                    <SidebarItem label="Archives" icon=icons::archive() item_query="ext:zip;7z;rar;tar;gz" query />
+                    <div class="sidebar-spacer" aria-hidden="true"></div>
+                    <div class="sidebar-separator"></div>
+                    <button
+                        type="button"
+                        class="sidebar-item settings-sidebar-item"
+                        title="Settings"
+                        aria-haspopup="dialog"
+                        aria-expanded=move || settings_open.get()
+                        on:click=move |_| settings_open.set(true)
+                    >
+                        {icons::settings()}<span>"Settings"</span>
+                    </button>
+                </aside>
+
+                <ResultsView context=results_view />
+            </div>
+
+            <ResultContextMenuView context=results_view />
+
+            <SettingsDialog open=settings_open theme excluded_folders />
+
+            <FileActionDialogs files selection results />
+        </main>
+    }
+}
+
+#[component]
+fn SidebarItem(
+    label: &'static str,
+    icon: AnyView,
+    item_query: &'static str,
+    query: RwSignal<String>,
+) -> impl IntoView {
+    view! {
+        <button
+            class="sidebar-item"
+            class:active=move || query.get() == item_query
+            on:click=move |_| query.set(item_query.into())
+        >
+            {icon}<span>{label}</span>
+        </button>
+    }
+}

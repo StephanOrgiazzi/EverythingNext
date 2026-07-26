@@ -1,4 +1,6 @@
-pub(super) fn file_size(size: Option<u64>, is_dir: bool) -> String {
+//! Formatting helpers for search results.
+
+pub(crate) fn file_size(size: Option<u64>, is_dir: bool) -> String {
     if is_dir {
         return String::new();
     }
@@ -20,7 +22,7 @@ pub(super) fn file_size(size: Option<u64>, is_dir: bool) -> String {
     }
 }
 
-pub(super) fn modified_date(timestamp: Option<i64>) -> String {
+pub(crate) fn modified_date(timestamp: Option<i64>) -> String {
     let Some(timestamp) = timestamp else {
         return "—".into();
     };
@@ -35,7 +37,7 @@ pub(super) fn modified_date(timestamp: Option<i64>) -> String {
     )
 }
 
-pub(super) fn result_count(total: u32) -> String {
+pub(crate) fn result_count(total: u32) -> String {
     let digits = total.to_string();
     let mut grouped = String::new();
     for (index, digit) in digits.chars().rev().enumerate() {

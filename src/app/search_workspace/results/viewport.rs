@@ -1,18 +1,18 @@
-use super::search::{RESULT_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN};
 use super::view_modes::{ViewMode, GRID_GAP, GRID_PADDING};
+use crate::app::search_workspace::search::{RESULT_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlDivElement;
 
-use super::browser_storage;
+use crate::app::settings::storage;
 use crate::diagnostics;
 
 const VIEW_MODE_STORAGE_KEY: &str = "everything-modern-view-mode";
 
 #[derive(Clone, Copy)]
-pub(super) struct ResultViewport {
+pub(crate) struct ResultViewport {
     pub list_ref: NodeRef<leptos::html::Div>,
     pub scroll_top: RwSignal<f64>,
     pub height: RwSignal<f64>,
@@ -276,7 +276,7 @@ fn calculate_columns(mode: ViewMode, width: f64) -> u32 {
 }
 
 fn load_view_mode() -> ViewMode {
-    let stored = browser_storage::read(VIEW_MODE_STORAGE_KEY);
+    let stored = storage::read(VIEW_MODE_STORAGE_KEY);
     match stored.as_deref() {
         Some("small") => ViewMode::Small,
         Some("medium") => ViewMode::Medium,
@@ -292,5 +292,5 @@ fn load_view_mode() -> ViewMode {
 }
 
 fn store_view_mode(mode: ViewMode) {
-    browser_storage::write(VIEW_MODE_STORAGE_KEY, mode.key());
+    storage::write(VIEW_MODE_STORAGE_KEY, mode.key());
 }

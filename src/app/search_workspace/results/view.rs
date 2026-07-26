@@ -1,0 +1,392 @@
+use super::{
+    file_size, modified_date, result_count, ColumnHeaders, FileIcon, FileVisual, ResultColumns,
+    ResultContextMenu, ResultSelection, ResultViewport, SelectionModifiers, ViewMode,
+};
+use crate::app::icons;
+use crate::app::search_workspace::file_actions::FileOperations;
+use crate::app::search_workspace::search::SearchResults;
+use crate::diagnostics;
+use everything_core::IndexSelection;
+use leptos::prelude::*;
+use web_sys::MouseEvent;
+
+#[derive(Clone, Copy)]
+pub(in crate::app::search_workspace) struct ResultsViewContext {
+    pub results: SearchResults,
+    pub selection: ResultSelection,
+    pub files: FileOperations,
+    pub menu: ResultContextMenu,
+    pub columns: ResultColumns,
+    pub viewport: ResultViewport,
+    pub visible_start: Memo<u32>,
+    pub visible_end: Memo<u32>,
+    pub viewport_start: Memo<u32>,
+    pub viewport_end: Memo<u32>,
+    pub engine_available: RwSignal<bool>,
+    pub engine_message: RwSignal<String>,
+}
+
+#[component]
+pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext) -> impl IntoView {
+    let ResultsViewContext {
+        results,
+        selection,
+        files,
+        menu,
+        columns,
+        viewport,
+        visible_start,
+        visible_end,
+        viewport_start,
+        viewport_end,
+        engine_available,
+        engine_message,
+    } = context;
+    let SearchResults {
+        query,
+        total,
+        sort,
+        loading,
+        error: search_error,
+        ..
+    } = results;
+    let selected = selection.indices;
+    let focused_index = selection.focused_index;
+    let error = files.error;
+    let list_ref = viewport.list_ref;
+    let on_scroll = move |event: web_sys::Event| {
+        viewport.update_from_scroll_event(event);
+        menu.close();
+    };
+
+    view! {
+        <section
+            class="results-panel"
+            class:icon-view=move || viewport.mode.get().is_grid()
+            class:resizing-columns=move || columns.is_resizing()
+            data-view-mode=move || viewport.mode.get().key()
+            style=move || columns.layout_style(viewport.grid_width.get())
+        >
+            <ColumnHeaders columns sort />
+
+            <div
+                class="results-scroll"
+                node_ref=list_ref
+                tabindex="0"
+                role="grid"
+                aria-label=move || if viewport.mode.get().is_grid() {
+                    "Search results in icon view"
+                } else {
+                    "Search results"
+                }
+                aria-colcount=move || if viewport.mode.get().is_grid() {
+                    viewport.columns.get()
+                } else {
+                    4
+                }
+                aria-rowcount=move || viewport.row_count(total.get())
+                on:scroll=on_scroll
+                on:click=move |_| {
+                    selection.clear();
+                    menu.close();
+                }
+            >
+                <div
+                    class="virtual-canvas"
+                    class:icon-virtual-canvas=move || viewport.mode.get().is_grid()
+                    role="presentation"
+                    style:height=move || format!("{}px", viewport.canvas_height(total.get()))
+                >
+                    {move || {
+                        let start = visible_start.get();
+                        let end = visible_end.get();
+                        let mode = viewport.mode.get();
+                        let columns = viewport.columns.get();
+                        let _width = viewport.grid_width.get();
+                        let thumbnail_start = viewport_start.get();
+                        let thumbnail_end = viewport_end.get();
+                        (start..end)
+                            .map(|index| {
+                                let maybe_item = results.item_at(index);
+                                match maybe_item {
+                                    Some(item) => {
+                                        let item_for_double = item.clone();
+                                        let item_for_context = item.clone();
+                                        let item_style = viewport.item_style(index);
+                                        if mode == ViewMode::Details {
+                                            view! {
+                                                <div
+                                                    class="result-row"
+                                                    data-full-path=item.full_path.clone()
+                                                    class:selected=move || selected.with(|selection| selection.contains(index))
+                                                    class:focused=move || focused_index.get() == Some(index)
+                                                    style=item_style
+                                                    role="row"
+                                                    aria-rowindex=index + 1
+                                                    aria-selected=move || selected.with(|selection| selection.contains(index))
+                                                    on:click=move |event: MouseEvent| {
+                                                        event.stop_propagation();
+                                                        selection.select_row(index, selection_modifiers(&event));
+                                                        if let Some(list) = list_ref.get() {
+                                                            if let Err(error) = list.focus() {
+                                                                diagnostics::warn_js("Unable to focus the result list.", &error);
+                                                            }
+                                                        }
+                                                        menu.close();
+                                                    }
+                                                    on:dblclick=move |_| files.open(item_for_double.full_path.clone())
+                                                    on:contextmenu=move |event: MouseEvent| {
+                                                        event.prevent_default();
+                                                        event.stop_propagation();
+                                                        menu.open_at_pointer(
+                                                            index,
+                                                            item_for_context.clone(),
+                                                            event.client_x(),
+                                                            event.client_y(),
+                                                            selection,
+                                                        );
+                                                    }
+                                                >
+                                                    <div class="cell col-name" role="gridcell">
+                                                        <FileIcon path=item.full_path.clone() />
+                                                        <span class="file-name" title=item.name.clone()>{item.name.clone()}</span>
+                                                    </div>
+                                                    <div class="cell col-path" role="gridcell" title=item.parent_path.clone()>{item.parent_path.clone()}</div>
+                                                    <div class="cell col-size" role="gridcell">{file_size(item.size, item.is_dir)}</div>
+                                                    <div class="cell col-date" role="gridcell">{modified_date(item.modified_unix)}</div>
+                                                </div>
+                                            }.into_any()
+                                        } else {
+                                            let metadata = if mode == ViewMode::Small {
+                                                item.parent_path.clone()
+                                            } else {
+                                                [
+                                                    file_size(item.size, item.is_dir),
+                                                    modified_date(item.modified_unix),
+                                                ]
+                                                    .into_iter()
+                                                    .filter(|value| !value.is_empty())
+                                                    .collect::<Vec<_>>()
+                                                    .join(" · ")
+                                            };
+                                            let title = if item.parent_path.is_empty() {
+                                                item.name.clone()
+                                            } else {
+                                                format!("{}\n{}", item.name, item.parent_path)
+                                            };
+                                            let aria_label = if item.parent_path.is_empty() {
+                                                item.name.clone()
+                                            } else {
+                                                format!("{}, {}", item.name, item.parent_path)
+                                            };
+                                            view! {
+                                                <div
+                                                    class=format!("icon-result icon-result-{}", mode.key())
+                                                    class:selected=move || selected.with(|selection| selection.contains(index))
+                                                    class:focused=move || focused_index.get() == Some(index)
+                                                    style=item_style
+                                                    role="gridcell"
+                                                    aria-rowindex=index / columns + 1
+                                                    aria-colindex=index % columns + 1
+                                                    aria-selected=move || selected.with(|selection| selection.contains(index))
+                                                    aria-label=aria_label
+                                                    title=title
+                                                    on:click=move |event: MouseEvent| {
+                                                        event.stop_propagation();
+                                                        selection.select_row(index, selection_modifiers(&event));
+                                                        if let Some(list) = list_ref.get() {
+                                                            if let Err(error) = list.focus() {
+                                                                diagnostics::warn_js("Unable to focus the result list.", &error);
+                                                            }
+                                                        }
+                                                        menu.close();
+                                                    }
+                                                    on:dblclick=move |_| files.open(item_for_double.full_path.clone())
+                                                    on:contextmenu=move |event: MouseEvent| {
+                                                        event.prevent_default();
+                                                        event.stop_propagation();
+                                                        menu.open_at_pointer(
+                                                            index,
+                                                            item_for_context.clone(),
+                                                            event.client_x(),
+                                                            event.client_y(),
+                                                            selection,
+                                                        );
+                                                    }
+                                                >
+                                                    {match mode.visual_size() {
+                                                        Some(visual_size) => view! {
+                                                                <FileVisual
+                                                                    path=item.full_path.clone()
+                                                                    visual_size
+                                                                    file_size=item.size
+                                                                    modified_unix=item.modified_unix
+                                                                    load={index >= thumbnail_start && index < thumbnail_end}
+                                                                />
+                                                        }.into_any(),
+                                                        None => view! {
+                                                            <span class="icon-result-visual">
+                                                                <FileIcon path=item.full_path.clone() />
+                                                            </span>
+                                                        }.into_any(),
+                                                    }}
+                                                    <div class="icon-result-text">
+                                                        <span class="icon-result-name">{item.name.clone()}</span>
+                                                        <span class="icon-result-metadata">{metadata}</span>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                    }
+                                    None if mode == ViewMode::Details => view! {
+                                            <div class="result-row skeleton-row" style=viewport.item_style(index) role="row" aria-rowindex=index + 1>
+                                                <div class="cell col-name" role="gridcell"><span class="skeleton icon-skeleton"></span><span class="skeleton text-skeleton"></span></div>
+                                                <div class="cell col-path" role="gridcell"><span class="skeleton path-skeleton"></span></div>
+                                                <div class="cell col-size" role="gridcell"><span class="skeleton size-skeleton"></span></div>
+                                                <div class="cell col-date" role="gridcell"><span class="skeleton date-skeleton"></span></div>
+                                            </div>
+                                        }.into_any(),
+                                    None => view! {
+                                            <div
+                                                class=format!("icon-result icon-result-{} skeleton-tile", mode.key())
+                                                style=viewport.item_style(index)
+                                                role="gridcell"
+                                                aria-rowindex=index / columns + 1
+                                                aria-colindex=index % columns + 1
+                                            >
+                                                <span class="icon-tile-skeleton icon-tile-skeleton-icon"></span>
+                                                <span class="icon-tile-skeleton icon-tile-skeleton-label"></span>
+                                            </div>
+                                        }.into_any(),
+                                }
+                            })
+                            .collect_view()
+                    }}
+                </div>
+
+                <Show when=move || query.get().trim().is_empty()>
+                    <EmptyState
+                        icon=icons::search()
+                        title="Start typing"
+                        message="All Everything search functions and operators are supported."
+                    />
+                </Show>
+                <Show when=move || !query.get().trim().is_empty() && !loading.get() && total.get() == 0 && search_error.get().is_none()>
+                    <EmptyState
+                        icon=icons::empty()
+                        title="No results"
+                        message="Try a less restrictive search or check the syntax."
+                    />
+                </Show>
+                <Show when=move || search_error.get().is_some()>
+                    {move || search_error.get().map(|message| view! {
+                        <div class="error-banner" role="alert">
+                            <span>{message}</span>
+                            <button class="banner-close" title="Close" aria-label="Close" on:click=move |_| search_error.set(None)>{icons::close()}</button>
+                        </div>
+                    })}
+                </Show>
+
+                <Show when=move || error.get().is_some()>
+                    <div class="error-banner" role="alert">
+                        {icons::warning()}
+                        <div><strong>"An operation failed"</strong><span>{move || error.get().unwrap_or_default()}</span></div>
+                        <button class="banner-close" title="Close" aria-label="Close" on:click=move |_| error.set(None)>{icons::close()}</button>
+                    </div>
+                </Show>
+            </div>
+
+            <footer class="statusbar">
+                <span>{move || result_count(total.get())}</span>
+                <span class="status-separator"></span>
+                <span>{move || format!("{} selected", selected.with(IndexSelection::count))}</span>
+                <Show when=move || !engine_available.get()>
+                    <span class="status-separator"></span>
+                    <span class="connection-warning" title=move || engine_message.get()>"Everything unavailable"</span>
+                </Show>
+                <span class="statusbar-spacer"></span>
+                <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Searching…"</span></Show>
+            </footer>
+        </section>
+    }
+}
+
+#[component]
+pub(in crate::app::search_workspace) fn ResultContextMenuView(
+    context: ResultsViewContext,
+) -> impl IntoView {
+    let ResultsViewContext {
+        results,
+        selection,
+        files,
+        menu,
+        ..
+    } = context;
+    let context_menu = menu.state;
+
+    view! {
+        <Show when=move || context_menu.get().is_some()>
+            {move || context_menu.get().map(|menu| view! {
+                <div class="context-menu" style:left=format!("{}px", menu.x) style:top=format!("{}px", menu.y) on:click=move |event| event.stop_propagation()>
+                    <ContextAction icon=icons::open() label="Open" shortcut="Enter" on_click={
+                        let path = menu.item.full_path.clone();
+                        move || { files.open(path.clone()); context_menu.set(None); }
+                    } />
+                    <ContextAction icon=icons::folder_open() label="Show in Explorer" shortcut="" on_click={
+                        let path = menu.item.full_path.clone();
+                        move || { files.reveal(path.clone()); context_menu.set(None); }
+                    } />
+                    <div class="context-separator"></div>
+                    <ContextAction icon=icons::copy() label="Copy name" shortcut="" on_click={
+                        let name = menu.item.name.clone();
+                        move || { files.copy(name.clone()); context_menu.set(None); }
+                    } />
+                    <ContextAction icon=icons::copy() label="Copy path" shortcut="" on_click={
+                        let path = menu.item.parent_path.clone();
+                        move || { files.copy(path.clone()); context_menu.set(None); }
+                    } />
+                    <ContextAction icon=icons::copy() label="Copy full path" shortcut="" on_click={
+                        let path = menu.item.full_path.clone();
+                        move || { files.copy(path.clone()); context_menu.set(None); }
+                    } />
+                    <ContextAction icon=icons::edit() label="Rename" shortcut="F2" on_click={
+                        let item = menu.item.clone();
+                        move || { files.begin_rename(item.clone()); context_menu.set(None); }
+                    } />
+                    <div class="context-separator"></div>
+                    <ContextAction danger=true icon=icons::trash() label="Move to Recycle Bin" shortcut="Del" on_click=move || { files.begin_trash(selection, results); context_menu.set(None); } />
+                </div>
+            })}
+        </Show>
+    }
+}
+
+#[component]
+fn EmptyState(icon: AnyView, title: &'static str, message: &'static str) -> impl IntoView {
+    view! { <div class="empty-state">{icon}<h2>{title}</h2><p>{message}</p></div> }
+}
+
+#[component]
+fn ContextAction<F>(
+    icon: AnyView,
+    label: &'static str,
+    shortcut: &'static str,
+    #[prop(default = false)] danger: bool,
+    on_click: F,
+) -> impl IntoView
+where
+    F: Fn() + Send + Sync + 'static,
+{
+    view! {
+        <button class="context-action" class:danger=danger on:click=move |_| on_click()>
+            {icon}<span>{label}</span><kbd>{shortcut}</kbd>
+        </button>
+    }
+}
+
+fn selection_modifiers(event: &MouseEvent) -> SelectionModifiers {
+    SelectionModifiers {
+        extend: event.shift_key(),
+        preserve: event.ctrl_key(),
+    }
+}

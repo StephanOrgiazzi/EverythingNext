@@ -1,3 +1,4 @@
+use crate::{backend, diagnostics};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::sync::{
@@ -6,11 +7,8 @@ use std::sync::{
 };
 
 use super::visual_queue::{next_animation_frame, request_thumbnail};
-use crate::backend;
-use crate::diagnostics;
-
 #[component]
-pub(super) fn FileIcon(path: String) -> impl IntoView {
+pub(crate) fn FileIcon(path: String) -> impl IntoView {
     let source = RwSignal::new(None::<String>);
     let cancelled = Arc::new(AtomicBool::new(false));
     let cancelled_on_cleanup = cancelled.clone();
@@ -44,7 +42,7 @@ pub(super) fn FileIcon(path: String) -> impl IntoView {
 }
 
 #[component]
-pub(super) fn FileVisual(
+pub(crate) fn FileVisual(
     path: String,
     visual_size: u32,
     file_size: Option<u64>,

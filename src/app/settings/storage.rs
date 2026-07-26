@@ -1,6 +1,6 @@
 use crate::diagnostics;
 
-pub(super) fn read(key: &str) -> Option<String> {
+pub(in crate::app) fn read(key: &str) -> Option<String> {
     let storage = local_storage()?;
     match storage.get_item(key) {
         Ok(value) => value,
@@ -14,7 +14,7 @@ pub(super) fn read(key: &str) -> Option<String> {
     }
 }
 
-pub(super) fn write(key: &str, value: &str) {
+pub(in crate::app) fn write(key: &str, value: &str) {
     let Some(storage) = local_storage() else {
         return;
     };

@@ -2,13 +2,13 @@ use js_sys::{Function, Reflect};
 use leptos::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
 
-use super::browser_storage;
+use super::storage;
 use crate::diagnostics;
 
 const STORAGE_KEY: &str = "everything-modern.theme";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Theme {
+enum Theme {
     Light,
     Dark,
 }
@@ -31,12 +31,12 @@ impl Theme {
 }
 
 #[derive(Clone, Copy)]
-pub struct ThemeState {
+pub(in crate::app) struct ThemeState {
     current: RwSignal<Theme>,
 }
 
 impl ThemeState {
-    pub fn new() -> Self {
+    pub(in crate::app) fn new() -> Self {
         let initial = read_stored_theme().unwrap_or_else(preferred_theme);
         apply_to_document(initial);
 
@@ -45,11 +45,11 @@ impl ThemeState {
         }
     }
 
-    pub fn current(self) -> Theme {
+    fn current(self) -> Theme {
         self.current.get()
     }
 
-    pub fn set(self, theme: Theme) {
+    fn set(self, theme: Theme) {
         apply_to_document(theme);
         write_stored_theme(theme);
         self.current.set(theme);
@@ -61,7 +61,7 @@ impl ThemeState {
     non_snake_case,
     reason = "Leptos components conventionally use PascalCase names"
 )]
-pub fn ThemeSetting(state: ThemeState) -> impl IntoView {
+pub(in crate::app) fn ThemeSetting(state: ThemeState) -> impl IntoView {
     view! {
         <div class="theme-setting">
             <p class="settings-description">"Choose the app appearance."</p>
@@ -131,7 +131,7 @@ fn apply_to_document(theme: Theme) {
 }
 
 fn read_stored_theme() -> Option<Theme> {
-    let value = browser_storage::read(STORAGE_KEY)?;
+    let value = storage::read(STORAGE_KEY)?;
     let theme = Theme::from_stored(&value);
     if theme.is_none() {
         diagnostics::warn(&format!("Ignoring unknown stored theme: {value}"));
@@ -140,5 +140,5 @@ fn read_stored_theme() -> Option<Theme> {
 }
 
 fn write_stored_theme(theme: Theme) {
-    browser_storage::write(STORAGE_KEY, theme.as_str());
+    storage::write(STORAGE_KEY, theme.as_str());
 }

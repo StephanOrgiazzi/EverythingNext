@@ -1,9 +1,8 @@
+use crate::diagnostics;
 use everything_core::{SortColumn, SortDirection, SortSpec};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlDivElement, PointerEvent};
-
-use crate::diagnostics;
 
 #[derive(Clone, Copy)]
 struct ColumnWidths {
@@ -31,7 +30,7 @@ struct ColumnResize {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct ResultColumns {
+pub(crate) struct ResultColumns {
     widths: RwSignal<Option<ColumnWidths>>,
     resize: RwSignal<Option<ColumnResize>>,
     header_ref: NodeRef<leptos::html::Div>,
@@ -171,7 +170,7 @@ impl ResultColumns {
 }
 
 #[component]
-pub(super) fn ColumnHeaders(columns: ResultColumns, sort: RwSignal<SortSpec>) -> impl IntoView {
+pub(crate) fn ColumnHeaders(columns: ResultColumns, sort: RwSignal<SortSpec>) -> impl IntoView {
     view! {
         <div class="column-header" node_ref=columns.header_ref>
             <div class="column-heading col-name">

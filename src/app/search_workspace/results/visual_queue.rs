@@ -1,3 +1,4 @@
+use crate::{backend, diagnostics};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::RefCell;
@@ -8,9 +9,6 @@ use std::sync::{
 };
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-
-use crate::backend;
-use crate::diagnostics;
 
 const CACHE_MAX_BYTES: usize = 24 * 1024 * 1024;
 const CACHE_MAX_ENTRIES: usize = 512;
@@ -186,7 +184,6 @@ async fn process_thumbnail_queue() {
                 }
             }
             Err(error) if !request.cancelled.load(Ordering::Relaxed) => {
-                // Errors remain retryable; only a confirmed absence is cached.
                 diagnostics::warn(&format!(
                     "Unable to load visual for '{}': {error}",
                     request.key.path

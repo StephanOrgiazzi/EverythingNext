@@ -1,21 +1,21 @@
-use super::search::SearchResults;
+use crate::app::search_workspace::search::SearchResults;
 use everything_core::{IndexSelection, SearchResult};
 use leptos::prelude::*;
 
 #[derive(Clone, Copy)]
-pub(super) enum FocusMove {
+pub(crate) enum FocusMove {
     Relative(i32),
     Absolute(u32),
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SelectionModifiers {
+pub(crate) struct SelectionModifiers {
     pub extend: bool,
     pub preserve: bool,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct ResultSelection {
+pub(crate) struct ResultSelection {
     pub indices: RwSignal<IndexSelection>,
     pub focused_index: RwSignal<Option<u32>>,
     pub anchor: RwSignal<Option<u32>>,

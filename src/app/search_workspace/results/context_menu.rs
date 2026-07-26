@@ -1,7 +1,7 @@
-use super::result_viewport::ResultViewport;
-use super::search::{SearchResults, RESULT_ROW_HEIGHT};
 use super::selection::ResultSelection;
 use super::view_modes::{GRID_GAP, GRID_PADDING};
+use super::viewport::ResultViewport;
+use crate::app::search_workspace::search::{SearchResults, RESULT_ROW_HEIGHT};
 use everything_core::SearchResult;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -14,14 +14,14 @@ const MENU_HEIGHT: i32 = 324;
 const VIEWPORT_MARGIN: i32 = 8;
 
 #[derive(Clone)]
-pub(super) struct ContextMenuState {
+pub(crate) struct ContextMenuState {
     pub x: i32,
     pub y: i32,
     pub item: SearchResult,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct ResultContextMenu {
+pub(crate) struct ResultContextMenu {
     pub state: RwSignal<Option<ContextMenuState>>,
 }
 
@@ -67,7 +67,7 @@ impl ResultContextMenu {
     }
 }
 
-pub(super) fn event_target_is_interactive(event: &KeyboardEvent) -> bool {
+pub(crate) fn event_target_is_interactive(event: &KeyboardEvent) -> bool {
     event
         .target()
         .and_then(|target| target.dyn_into::<Element>().ok())

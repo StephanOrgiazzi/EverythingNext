@@ -1,4 +1,4 @@
-use super::exclusions::compose_query;
+use super::super::settings::compose_query;
 use crate::backend;
 use everything_core::{QueryRequest, SearchResult, SelectionRange, SelectionRequest, SortSpec};
 use gloo_timers::future::TimeoutFuture;
@@ -15,17 +15,17 @@ const PAGE_CACHE_LIMIT: usize = 8;
 
 #[derive(Clone, Copy)]
 pub(super) struct SearchResults {
-    pub query: RwSignal<String>,
+    pub(super) query: RwSignal<String>,
     excluded_folders: RwSignal<Vec<String>>,
     generation: RwSignal<u32>,
     refresh_token: RwSignal<u32>,
     pages: RwSignal<BTreeMap<u32, Vec<SearchResult>>>,
     loading_pages: RwSignal<HashSet<(u32, u32)>>,
-    pub total: RwSignal<u32>,
-    pub sort: RwSignal<SortSpec>,
-    pub loading: RwSignal<bool>,
-    pub render_latency_ms: RwSignal<Option<f64>>,
-    pub error: RwSignal<Option<String>>,
+    pub(super) total: RwSignal<u32>,
+    pub(super) sort: RwSignal<SortSpec>,
+    pub(super) loading: RwSignal<bool>,
+    pub(super) render_latency_ms: RwSignal<Option<f64>>,
+    pub(super) error: RwSignal<Option<String>>,
 }
 
 impl SearchResults {
@@ -233,5 +233,30 @@ fn record_next_frame_latency(received_at: f64, target: RwSignal<Option<f64>>) {
     });
     if !scheduled {
         target.set(Some(js_sys::Date::now() - received_at));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use everything_core::SearchResult;
+
+    use super::{evict_distant_pages, PAGE_CACHE_LIMIT};
+
+    #[test]
+    fn page_cache_keeps_the_pages_nearest_to_the_latest_request() {
+        let mut cache = (0..=PAGE_CACHE_LIMIT as u32)
+            .map(|page| (page, Vec::<SearchResult>::new()))
+            .collect::<BTreeMap<_, _>>();
+
+        evict_distant_pages(&mut cache, 4);
+
+        assert_eq!(cache.len(), PAGE_CACHE_LIMIT);
+        assert!(cache.contains_key(&4));
+        assert!(
+            cache.contains_key(&0) ^ cache.contains_key(&(PAGE_CACHE_LIMIT as u32)),
+            "one of the two equally distant edge pages should be evicted"
+        );
     }
 }

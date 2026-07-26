@@ -1,5 +1,9 @@
+mod dialogs;
+
+pub(super) use dialogs::FileActionDialogs;
+
+use super::results::ResultSelection;
 use super::search::SearchResults;
-use super::selection::ResultSelection;
 use crate::backend;
 use everything_core::{validate_windows_name, IndexSelection, SearchResult};
 use leptos::prelude::*;

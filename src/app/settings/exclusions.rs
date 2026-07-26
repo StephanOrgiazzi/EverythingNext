@@ -1,25 +1,25 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use super::browser_storage;
+use super::storage;
 use crate::backend;
 use crate::diagnostics;
 
 const STORAGE_KEY: &str = "everything-modern.excluded-folders";
 
 #[derive(Clone, Copy)]
-pub struct ExcludedFoldersState {
-    pub folders: RwSignal<Vec<String>>,
+pub(in crate::app) struct ExcludedFoldersState {
+    pub(in crate::app) folders: RwSignal<Vec<String>>,
 }
 
 impl ExcludedFoldersState {
-    pub fn new() -> Self {
+    pub(in crate::app) fn new() -> Self {
         Self {
             folders: RwSignal::new(read_stored_folders()),
         }
     }
 
-    pub fn add(self, raw_path: &str) -> Result<(), &'static str> {
+    fn add(self, raw_path: &str) -> Result<(), &'static str> {
         let path = validated_path(raw_path)?;
         if contains_case_insensitive(&self.folders.get_untracked(), &path) {
             return Err("This folder is already excluded.");
@@ -30,7 +30,7 @@ impl ExcludedFoldersState {
         Ok(())
     }
 
-    pub fn remove(self, path: &str) {
+    fn remove(self, path: &str) {
         self.folders
             .update(|folders| folders.retain(|folder| !folder.eq_ignore_ascii_case(path)));
         write_stored_folders(&self.folders.get_untracked());
@@ -48,7 +48,7 @@ impl Default for ExcludedFoldersState {
     non_snake_case,
     reason = "Leptos components conventionally use PascalCase names"
 )]
-pub fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> impl IntoView {
+pub(in crate::app) fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> impl IntoView {
     let validation_error = RwSignal::new(None::<String>);
     let is_picking = RwSignal::new(false);
 
@@ -129,7 +129,7 @@ pub fn ExcludedFoldersSetting(state: ExcludedFoldersState) -> impl IntoView {
     }
 }
 
-pub fn compose_query(raw: &str, excluded_folders: &[String]) -> String {
+pub(in crate::app) fn compose_query(raw: &str, excluded_folders: &[String]) -> String {
     let exclusions = excluded_folders
         .iter()
         .map(|folder| format!(r#"!<whole:path:"{folder}"|ancestor:"{folder}">"#))
@@ -199,7 +199,7 @@ fn is_unc_path(path: &str) -> bool {
 }
 
 fn read_stored_folders() -> Vec<String> {
-    let Some(value) = browser_storage::read(STORAGE_KEY) else {
+    let Some(value) = storage::read(STORAGE_KEY) else {
         return Vec::new();
     };
 
@@ -238,7 +238,7 @@ fn write_stored_folders(folders: &[String]) {
         }
     };
 
-    browser_storage::write(STORAGE_KEY, &value);
+    storage::write(STORAGE_KEY, &value);
 }
 
 #[cfg(test)]

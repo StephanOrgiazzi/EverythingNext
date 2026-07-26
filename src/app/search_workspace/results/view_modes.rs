@@ -1,4 +1,4 @@
-use super::result_viewport::ResultViewport;
+use super::viewport::ResultViewport;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -11,7 +11,7 @@ pub(super) const GRID_GAP: f64 = 8.0;
 pub(super) const GRID_PADDING: f64 = 10.0;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) enum ViewMode {
+pub(crate) enum ViewMode {
     #[default]
     Details,
     Small,
@@ -102,7 +102,7 @@ impl ViewMode {
     non_snake_case,
     reason = "Leptos components conventionally use PascalCase names"
 )]
-pub(super) fn ViewSwitcher(viewport: ResultViewport, open: RwSignal<bool>) -> impl IntoView {
+pub(crate) fn ViewSwitcher(viewport: ResultViewport, open: RwSignal<bool>) -> impl IntoView {
     let trigger_ref = NodeRef::<leptos::html::Button>::new();
 
     let open_menu = move |focus: MenuFocus| {
