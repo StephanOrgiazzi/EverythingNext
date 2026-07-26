@@ -40,6 +40,7 @@ web-sys = { version = "0.3", features = [
   "EventTarget",
   "HtmlDivElement",
   "HtmlElement",
+  "HtmlImageElement",
   "HtmlInputElement",
   "KeyboardEvent",
   "MouseEvent",

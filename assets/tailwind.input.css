@@ -261,6 +261,28 @@
     text-overflow: ellipsis;
   }
 
+  .icon-result-name {
+    white-space: nowrap;
+  }
+
+  .icon-result-medium .icon-result-text {
+    max-width: 112px;
+  }
+
+  .icon-result-large .icon-result-text {
+    max-width: 144px;
+  }
+
+  .icon-result-medium .icon-result-name,
+  .icon-result-large .icon-result-name {
+    display: -webkit-box;
+    line-height: 1.25;
+    white-space: normal;
+    text-wrap: pretty;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .skeleton-row {
     pointer-events: none;
   }

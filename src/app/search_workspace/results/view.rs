@@ -20,8 +20,6 @@ pub(in crate::app::search_workspace) struct ResultsViewContext {
     pub viewport: ResultViewport,
     pub visible_start: Memo<u32>,
     pub visible_end: Memo<u32>,
-    pub viewport_start: Memo<u32>,
-    pub viewport_end: Memo<u32>,
     pub engine_available: RwSignal<bool>,
     pub engine_message: RwSignal<String>,
 }
@@ -37,8 +35,6 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
         viewport,
         visible_start,
         visible_end,
-        viewport_start,
-        viewport_end,
         engine_available,
         engine_message,
     } = context;
@@ -97,16 +93,14 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                     role="presentation"
                     style:height=move || format!("{}px", viewport.canvas_height(total.get()))
                 >
-                    {move || {
-                        let start = visible_start.get();
-                        let end = visible_end.get();
-                        let mode = viewport.mode.get();
-                        let columns = viewport.columns.get();
-                        let _width = viewport.grid_width.get();
-                        let thumbnail_start = viewport_start.get();
-                        let thumbnail_end = viewport_end.get();
-                        (start..end)
-                            .map(|index| {
+                    <For
+                        each=move || visible_start.get()..visible_end.get()
+                        key=|index| *index
+                        children=move |index| view! {
+                            {move || {
+                                let mode = viewport.mode.get();
+                                let columns = viewport.columns.get();
+                                let _width = viewport.grid_width.get();
                                 let maybe_item = results.item_at(index);
                                 match maybe_item {
                                     Some(item) => {
@@ -148,7 +142,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                                     }
                                                 >
                                                     <div class="cell col-name" role="gridcell">
-                                                        <FileIcon path=item.full_path.clone() />
+                                                        <FileIcon path=item.full_path.clone() is_dir=item.is_dir />
                                                         <span class="file-name" title=item.name.clone()>{item.name.clone()}</span>
                                                     </div>
                                                     <div class="cell col-path" role="gridcell" title=item.parent_path.clone()>{item.parent_path.clone()}</div>
@@ -219,23 +213,23 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                                     }
                                                 >
                                                     {match mode.visual_size() {
-                                                        Some(visual_size) => view! {
+                                                        Some(_) => view! {
                                                                 <FileVisual
                                                                     path=item.full_path.clone()
-                                                                    visual_size
+                                                                    is_dir=item.is_dir
                                                                     file_size=item.size
                                                                     modified_unix=item.modified_unix
-                                                                    load={index >= thumbnail_start && index < thumbnail_end}
+                                                                    load=true
                                                                 />
                                                         }.into_any(),
                                                         None => view! {
                                                             <span class="icon-result-visual grid shrink-0 place-items-center">
-                                                                <FileIcon path=item.full_path.clone() />
+                                                                <FileIcon path=item.full_path.clone() is_dir=item.is_dir />
                                                             </span>
                                                         }.into_any(),
                                                     }}
                                                     <div class="icon-result-text flex min-w-0 flex-col gap-0.5 overflow-hidden">
-                                                        <span class="icon-result-name block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[var(--text)]">{item.name.clone()}</span>
+                                                        <span class="icon-result-name max-w-full overflow-hidden text-ellipsis text-[var(--text)]">{item.name.clone()}</span>
                                                         <span class="icon-result-metadata block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--muted)]">{metadata}</span>
                                                     </div>
                                                 </div>
@@ -267,9 +261,9 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                             </div>
                                         }.into_any(),
                                 }
-                            })
-                            .collect_view()
-                    }}
+                            }}
+                        }
+                    />
                 </div>
 
                 <Show when=move || query.get().trim().is_empty()>

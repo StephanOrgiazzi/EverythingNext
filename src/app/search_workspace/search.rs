@@ -122,6 +122,64 @@ impl SearchResults {
         })
     }
 
+    pub async fn find_by_initial(self, initial: char, start: u32) -> Option<u32> {
+        let total = self.total.get_untracked();
+        if total == 0 {
+            return None;
+        }
+
+        let generation = self.generation.get_untracked();
+        let start = start.min(total);
+        if let Some(index) = self
+            .find_by_initial_in_range(initial, start, total, generation)
+            .await
+        {
+            return Some(index);
+        }
+        self.find_by_initial_in_range(initial, 0, start, generation)
+            .await
+    }
+
+    async fn find_by_initial_in_range(
+        self,
+        initial: char,
+        start: u32,
+        end: u32,
+        generation: u32,
+    ) -> Option<u32> {
+        let mut offset = start;
+        while offset < end && self.generation.get_untracked() == generation {
+            let limit = PAGE_SIZE.min(end - offset);
+            let request = QueryRequest {
+                query: compose_query(
+                    &self.query.get_untracked(),
+                    &self.excluded_folders.get_untracked(),
+                ),
+                offset,
+                limit,
+                sort: self.sort.get_untracked(),
+                request_id: generation,
+            };
+            let page = backend::search(request).await.ok()?;
+            if self.generation.get_untracked() != generation {
+                return None;
+            }
+            if let Some(within_page) = page
+                .items
+                .iter()
+                .position(|item| name_starts_with(item, initial))
+            {
+                return offset.checked_add(u32::try_from(within_page).ok()?);
+            }
+            let received = u32::try_from(page.items.len()).ok()?;
+            if received == 0 {
+                return None;
+            }
+            offset = offset.saturating_add(received);
+        }
+        None
+    }
+
     pub fn refresh(self) {
         self.refresh_token
             .update(|value| *value = value.saturating_add(1));
@@ -237,13 +295,20 @@ fn record_next_frame_latency(received_at: f64, target: RwSignal<Option<f64>>) {
     }
 }
 
+fn name_starts_with(item: &SearchResult, initial: char) -> bool {
+    item.name
+        .chars()
+        .next()
+        .is_some_and(|first| first.to_lowercase().eq(initial.to_lowercase()))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use everything_core::SearchResult;
 
-    use super::{evict_distant_pages, PAGE_CACHE_LIMIT};
+    use super::{evict_distant_pages, name_starts_with, PAGE_CACHE_LIMIT};
 
     #[test]
     fn page_cache_keeps_the_pages_nearest_to_the_latest_request() {
@@ -261,5 +326,21 @@ mod tests {
             cache.contains_key(&0) ^ cache.contains_key(&page_cache_limit),
             "one of the two equally distant edge pages should be evicted"
         );
+    }
+
+    #[test]
+    fn name_initial_matching_ignores_case() {
+        let item = SearchResult {
+            id: "1".into(),
+            name: "File.txt".into(),
+            parent_path: String::new(),
+            full_path: "File.txt".into(),
+            size: None,
+            modified_unix: None,
+            is_dir: false,
+        };
+
+        assert!(name_starts_with(&item, 'f'));
+        assert!(!name_starts_with(&item, 'x'));
     }
 }

@@ -38,7 +38,6 @@ mod command {
     pub const ENGINE_STATUS: &str = "engine_status";
     pub const BEGIN_SEARCH_GENERATION: &str = "begin_search_generation";
     pub const SEARCH: &str = "search_everything";
-    pub const FILE_ICON: &str = "get_file_icon";
     pub const FILE_VISUAL: &str = "get_file_visual";
     pub const OPEN_PATH: &str = "open_path";
     pub const REVEAL_PATH: &str = "reveal_path";
@@ -68,7 +67,7 @@ struct PathArgs<'a> {
 #[derive(Serialize)]
 struct VisualArgs<'a> {
     path: &'a str,
-    size: u32,
+    thumbnail: bool,
 }
 
 #[derive(Serialize)]
@@ -131,12 +130,8 @@ pub async fn search(request: QueryRequest) -> Result<SearchPage, String> {
     invoke(command::SEARCH, &RequestArgs { request }).await
 }
 
-pub async fn icon(path: &str) -> Result<Option<String>, String> {
-    invoke::<Option<String>, _>(command::FILE_ICON, &PathArgs { path }).await
-}
-
-pub async fn visual(path: &str, size: u32) -> Result<Option<String>, String> {
-    invoke::<Option<String>, _>(command::FILE_VISUAL, &VisualArgs { path, size }).await
+pub async fn visual(path: &str, thumbnail: bool) -> Result<Option<String>, String> {
+    invoke::<Option<String>, _>(command::FILE_VISUAL, &VisualArgs { path, thumbnail }).await
 }
 
 pub async fn open(path: &str) -> Result<(), String> {

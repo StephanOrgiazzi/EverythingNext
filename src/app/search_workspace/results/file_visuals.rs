@@ -1,40 +1,68 @@
 use crate::{backend, diagnostics};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::cell::RefCell;
+use std::collections::HashMap;
 
-use super::visual_queue::{next_animation_frame, request_thumbnail};
+use super::visual_queue::request_thumbnail;
+
+type IconSource = ArcRwSignal<Option<Option<String>>>;
+
+thread_local! {
+    static ICON_SOURCES: RefCell<HashMap<String, IconSource>> = RefCell::new(HashMap::new());
+}
+
+fn icon_cache_key(path: &str, is_dir: bool) -> String {
+    let normalized = path.replace('/', "\\").to_lowercase();
+    if is_dir {
+        return format!("path:{normalized}");
+    }
+
+    let name = normalized.rsplit('\\').next().unwrap_or(&normalized);
+    let extension = name
+        .rsplit_once('.')
+        .map(|(_, extension)| extension)
+        .filter(|extension| !extension.is_empty());
+    match extension {
+        Some("exe" | "lnk" | "url" | "ico" | "cur") | None => format!("path:{normalized}"),
+        Some(extension) => format!("extension:{extension}"),
+    }
+}
+
+fn icon_source(path: &str, is_dir: bool) -> (IconSource, bool) {
+    let key = icon_cache_key(path, is_dir);
+    ICON_SOURCES.with(|sources| {
+        let mut sources = sources.borrow_mut();
+        if let Some(source) = sources.get(&key) {
+            return (source.clone(), false);
+        }
+
+        let source = ArcRwSignal::new(None);
+        sources.insert(key, source.clone());
+        (source, true)
+    })
+}
+
 #[component]
-pub(crate) fn FileIcon(path: String) -> impl IntoView {
-    let source = RwSignal::new(None::<String>);
-    let cancelled = Arc::new(AtomicBool::new(false));
-    let cancelled_on_cleanup = cancelled.clone();
-    on_cleanup(move || cancelled_on_cleanup.store(true, Ordering::Relaxed));
-
-    Effect::new(move |_| {
+pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
+    let (source, should_load) = icon_source(&path, is_dir);
+    if should_load {
+        let source_for_load = source.clone();
         let path = path.clone();
-        let cancelled = cancelled.clone();
         spawn_local(async move {
-            next_animation_frame().await;
-            if cancelled.load(Ordering::Relaxed) {
-                return;
-            }
-            match backend::icon(&path).await {
-                Ok(icon) if !cancelled.load(Ordering::Relaxed) => source.set(icon),
-                Ok(_) => {}
+            match backend::visual(&path, false).await {
+                Ok(icon) => source_for_load.set(Some(icon)),
                 Err(error) => {
-                    diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"))
+                    diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
+                    source_for_load.set(Some(None));
                 }
             }
         });
-    });
+    }
 
     view! {
         <span class="file-icon grid size-5 place-items-center [&>img]:size-5 [&>img]:object-contain">
-            {move || source.get().map(|source| view! {
+            {move || source.get().flatten().map(|source| view! {
                 <img src=source alt="" loading="lazy" decoding="async" />
             })}
         </span>
@@ -44,38 +72,31 @@ pub(crate) fn FileIcon(path: String) -> impl IntoView {
 #[component]
 pub(crate) fn FileVisual(
     path: String,
-    visual_size: u32,
+    is_dir: bool,
     file_size: Option<u64>,
     modified_unix: Option<i64>,
     load: bool,
 ) -> impl IntoView {
-    let subscription = load.then(|| {
-        let pixel_ratio = web_sys::window()
-            .map(|window| window.device_pixel_ratio())
-            .unwrap_or(1.0);
-        let pixel_size = ((f64::from(visual_size) * pixel_ratio).ceil() as u32).clamp(32, 256);
-        request_thumbnail(path.clone(), pixel_size, file_size, modified_unix)
-    });
-
-    if let Some(subscription) = subscription.as_ref() {
-        let subscription = subscription.clone();
-        on_cleanup(move || subscription.cancel());
-    }
+    let subscription = load.then(|| request_thumbnail(path.clone(), file_size, modified_unix));
 
     if let Some(subscription) = subscription {
         let source = subscription.source;
+        let fallback_source = source.clone();
         let animate_reveal = subscription.animate_reveal;
+        let fallback_path = path.clone();
         view! {
             <span class="icon-result-visual thumbnail-stack grid size-[var(--view-icon-size)] shrink-0 place-items-center [&>*]:[grid-area:1/1]">
-                <FileIcon path=path />
+                {move || matches!(fallback_source.get(), None | Some(None)).then(|| view! {
+                    <FileIcon path=fallback_path.clone() is_dir />
+                })}
                 {move || source.get().flatten().map(|source| view! {
                     <img
                         class="file-visual-image size-full object-contain"
                         class:thumbnail-reveal=animate_reveal
                         src=source
                         alt=""
-                        loading="lazy"
-                        decoding="async"
+                        loading="eager"
+                        decoding=if animate_reveal { "async" } else { "sync" }
                     />
                 })}
             </span>
@@ -84,9 +105,34 @@ pub(crate) fn FileVisual(
     } else {
         view! {
             <span class="icon-result-visual grid size-[var(--view-icon-size)] shrink-0 place-items-center">
-                <span class="file-visual-placeholder h-[76%] w-[62%] rounded-[5px] border border-[color-mix(in_srgb,var(--muted)_38%,transparent)] bg-[color-mix(in_srgb,var(--hover)_55%,transparent)]" aria-hidden="true"></span>
+                <FileIcon path=path is_dir />
             </span>
         }
         .into_any()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::icon_cache_key;
+
+    #[test]
+    fn shared_file_types_reuse_one_icon_source() {
+        assert_eq!(
+            icon_cache_key(r"C:\Music\first.mp3", false),
+            icon_cache_key(r"D:\Other\second.MP3", false)
+        );
+    }
+
+    #[test]
+    fn unique_icons_and_folders_remain_path_specific() {
+        assert_ne!(
+            icon_cache_key(r"C:\Apps\first.exe", false),
+            icon_cache_key(r"C:\Apps\second.exe", false)
+        );
+        assert_ne!(
+            icon_cache_key(r"C:\First.folder", true),
+            icon_cache_key(r"C:\Second.folder", true)
+        );
     }
 }

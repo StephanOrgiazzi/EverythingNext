@@ -52,8 +52,6 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
 
     let visible_start = viewport.visible_start();
     let visible_end = viewport.visible_end(visible_start, total);
-    let viewport_start = viewport.viewport_start();
-    let viewport_end = viewport.viewport_end(total);
     results.monitor(visible_start, visible_end, move || {
         selection.clear();
         files.reset_for_new_search();
@@ -69,8 +67,6 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
         viewport,
         visible_start,
         visible_end,
-        viewport_start,
-        viewport_end,
         engine_available,
         engine_message,
     };
@@ -92,6 +88,7 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
         viewport,
         files,
         menu,
+        last_initial: RwSignal::new(None),
     };
     let on_keydown = move |event| keyboard.handle_keydown(event);
 
@@ -112,8 +109,8 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
                 <div class="app-mark grid size-5 place-items-center bg-transparent text-[0] text-transparent shadow-none [&_svg]:size-5" aria-hidden="true">
                     <svg viewBox="0 0 256 256">
                         <rect x="14" y="14" width="228" height="228" rx="56" fill="#FFD76B"></rect>
-                        <circle cx="108" cy="104" r="50" fill="none" stroke="#C95000" stroke-width="23"></circle>
-                        <path d="M143.5 139.5 196 192" fill="none" stroke="#C95000" stroke-width="23" stroke-linecap="round"></path>
+                        <circle cx="108" cy="104" r="50" fill="none" stroke="#1992CA" stroke-width="23"></circle>
+                        <path d="M143.5 139.5 196 192" fill="none" stroke="#1992CA" stroke-width="23" stroke-linecap="round"></path>
                     </svg>
                 </div>
                 <div class="app-title text-xs font-semibold tracking-[.01em]" data-tauri-drag-region>"Everything Modern"</div>

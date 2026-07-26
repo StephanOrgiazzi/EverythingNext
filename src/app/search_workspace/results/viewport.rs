@@ -65,28 +65,6 @@ impl ResultViewport {
         })
     }
 
-    pub fn viewport_start(self) -> Memo<u32> {
-        Memo::new(move |_| {
-            let mode = self.mode.get();
-            let columns = self.columns.get();
-            ((self.scroll_top.get() / mode.item_height()).floor() as u32).saturating_mul(columns)
-        })
-    }
-
-    pub fn viewport_end(self, total: RwSignal<u32>) -> Memo<u32> {
-        Memo::new(move |_| {
-            let mode = self.mode.get();
-            let columns = self.columns.get();
-            let first_row = (self.scroll_top.get() / mode.item_height()).floor() as u32;
-            let visible_rows = (self.height.get() / mode.item_height()).ceil() as u32;
-            first_row
-                .saturating_add(visible_rows)
-                .saturating_add(1)
-                .saturating_mul(columns)
-                .min(total.get())
-        })
-    }
-
     pub fn update_from_scroll_event(self, event: web_sys::Event) {
         let Some(element) = event
             .target()
@@ -295,4 +273,23 @@ fn load_view_mode() -> ViewMode {
 
 fn store_view_mode(mode: ViewMode) {
     storage::write(VIEW_MODE_STORAGE_KEY, mode.key());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn icon_columns_grow_with_the_viewport() {
+        assert_eq!(calculate_columns(ViewMode::Medium, 520.0), 4);
+        assert_eq!(calculate_columns(ViewMode::Medium, 540.0), 5);
+        assert_eq!(calculate_columns(ViewMode::Medium, 1_700.0), 16);
+    }
+
+    #[test]
+    fn icon_columns_keep_sensible_mode_limits() {
+        assert_eq!(calculate_columns(ViewMode::Small, 4_000.0), 6);
+        assert_eq!(calculate_columns(ViewMode::Medium, 4_000.0), 20);
+        assert_eq!(calculate_columns(ViewMode::Large, 4_000.0), 14);
+    }
 }

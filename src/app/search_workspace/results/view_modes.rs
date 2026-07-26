@@ -44,7 +44,7 @@ impl ViewMode {
         match self {
             Self::Details => 34.0,
             Self::Small => 46.0,
-            Self::Medium => 132.0,
+            Self::Medium => 148.0,
             Self::Large => 184.0,
         }
     }
@@ -64,18 +64,18 @@ impl ViewMode {
     pub fn min_width(self) -> f64 {
         match self {
             Self::Details => f64::INFINITY,
-            Self::Small => 360.0,
-            Self::Medium => 100.0,
-            Self::Large => 120.0,
+            Self::Small => 260.0,
+            Self::Medium => 96.0,
+            Self::Large => 128.0,
         }
     }
 
     pub fn max_columns(self) -> u32 {
         match self {
             Self::Details => 1,
-            Self::Small => 2,
-            Self::Medium => 10,
-            Self::Large => 8,
+            Self::Small => 6,
+            Self::Medium => 20,
+            Self::Large => 14,
         }
     }
 
@@ -86,10 +86,10 @@ impl ViewMode {
                 "[--view-icon-size:24px] flex-row items-center gap-2.5 px-2.5 py-[5px] [&_.icon-result-text]:flex-1 [&_.icon-result-text]:items-start [&_.icon-result-text]:text-left"
             }
             Self::Medium => {
-                "[--view-icon-size:64px] flex-col items-center justify-center gap-2 px-2 pt-2.5 pb-2 text-center [&_.icon-result-text]:w-full [&_.icon-result-text]:items-center"
+                "[--view-icon-size:64px] flex-col items-center justify-start gap-2 px-2 pt-2.5 pb-2 text-center [&_.icon-result-text]:w-full [&_.icon-result-text]:items-center"
             }
             Self::Large => {
-                "[--view-icon-size:96px] flex-col items-center justify-center gap-3 px-2.5 pt-3.5 pb-2.5 text-center [&_.icon-result-text]:w-full [&_.icon-result-text]:items-center [&_.icon-result-metadata]:hidden"
+                "[--view-icon-size:96px] flex-col items-center justify-start gap-3 px-2.5 pt-3.5 pb-2.5 text-center [&_.icon-result-text]:w-full [&_.icon-result-text]:items-center [&_.icon-result-metadata]:hidden"
             }
         }
     }

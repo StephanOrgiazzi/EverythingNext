@@ -6,6 +6,7 @@ use super::results::{
 use super::search::SearchResults;
 use crate::diagnostics;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use web_sys::KeyboardEvent;
 
 #[derive(Clone, Copy)]
@@ -17,6 +18,7 @@ pub(super) struct KeyboardContext {
     pub viewport: ResultViewport,
     pub files: FileOperations,
     pub menu: ResultContextMenu,
+    pub last_initial: RwSignal<Option<char>>,
 }
 
 impl KeyboardContext {
@@ -42,6 +44,13 @@ impl KeyboardContext {
         if event_target_is_interactive(&event) {
             return;
         }
+
+        if is_plain_letter_key(&event, &key) {
+            event.prevent_default();
+            self.navigate_by_initial(key.chars().next().expect("a letter key has one character"));
+            return;
+        }
+        self.last_initial.set(None);
 
         if event.ctrl_key() && key.eq_ignore_ascii_case("a") {
             event.prevent_default();
@@ -126,5 +135,59 @@ impl KeyboardContext {
         {
             self.viewport.scroll_row_into_view(index);
         }
+    }
+
+    fn navigate_by_initial(self, initial: char) {
+        let repeated = self
+            .last_initial
+            .get_untracked()
+            .is_some_and(|previous| letters_match(previous, initial));
+        self.last_initial.set(Some(initial));
+
+        let start = if repeated {
+            self.selection
+                .focused_index
+                .get_untracked()
+                .map_or(0, |index| index.saturating_add(1))
+        } else {
+            0
+        };
+
+        spawn_local(async move {
+            if let Some(index) = self.results.find_by_initial(initial, start).await {
+                self.selection.focus(
+                    FocusMove::Absolute(index),
+                    SelectionModifiers {
+                        extend: false,
+                        preserve: false,
+                    },
+                    self.results.total.get_untracked(),
+                );
+                self.viewport.scroll_row_into_view(index);
+            }
+        });
+    }
+}
+
+fn is_plain_letter_key(event: &KeyboardEvent, key: &str) -> bool {
+    !event.ctrl_key()
+        && !event.alt_key()
+        && !event.meta_key()
+        && key.chars().count() == 1
+        && key.chars().next().is_some_and(char::is_alphabetic)
+}
+
+fn letters_match(left: char, right: char) -> bool {
+    left.to_lowercase().eq(right.to_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::letters_match;
+
+    #[test]
+    fn initial_matching_ignores_case() {
+        assert!(letters_match('F', 'f'));
+        assert!(!letters_match('F', 'g'));
     }
 }
