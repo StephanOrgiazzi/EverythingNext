@@ -122,7 +122,7 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
     };
     use windows::Win32::System::Com::{CoInitialize, CoUninitialize};
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_RESIZETOFIT,
+        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK,
     };
 
     struct ComGuard(bool);
@@ -185,7 +185,10 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
                 cx: requested_size,
                 cy: requested_size,
             },
-            SIIGBF_RESIZETOFIT,
+            // Let the WebView downsample the closest larger Shell thumbnail.
+            // The Shell otherwise uses a low-quality GDI stretch at the exact
+            // requested size, which makes album artwork visibly blurry.
+            SIIGBF_BIGGERSIZEOK,
         )
     } {
         Ok(bitmap) => BitmapGuard(bitmap),
