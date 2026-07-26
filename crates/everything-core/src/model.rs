@@ -235,7 +235,10 @@ mod selection_tests {
             }
         }
 
-        assert_eq!(selection.count(), expected.len() as u64);
+        assert_eq!(
+            selection.count(),
+            u64::try_from(expected.len()).expect("test set length fits into u64")
+        );
         for index in 0..=55 {
             assert_eq!(
                 selection.contains(index),

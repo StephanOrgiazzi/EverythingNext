@@ -239,14 +239,16 @@ impl EverythingSdk {
             self.set_search_viewport_offset,
             self.get_search_viewport_offset,
             search_state.pointer,
-            request.offset as usize,
+            usize::try_from(request.offset)
+                .expect("u32 offsets fit into usize on supported Windows targets"),
         )?;
         self.set_search_viewport(
             "Everything3_SetSearchViewportCount",
             self.set_search_viewport_count,
             self.get_search_viewport_count,
             search_state.pointer,
-            request.limit.clamp(1, 4096) as usize,
+            usize::try_from(request.limit.clamp(1, 4096))
+                .expect("viewport limits fit into usize on supported Windows targets"),
         )?;
 
         let result_list_ptr = unsafe { (self.search)(self.client, search_state.pointer) };
@@ -259,8 +261,8 @@ impl EverythingSdk {
         };
 
         let count = unsafe { (self.get_result_list_viewport_count)(result_list.pointer) };
-        let total = unsafe { (self.get_result_list_count)(result_list.pointer) }
-            .min(u32::MAX as usize) as u32;
+        let total = u32::try_from(unsafe { (self.get_result_list_count)(result_list.pointer) })
+            .unwrap_or(u32::MAX);
         let mut items = Vec::with_capacity(count);
 
         for index in 0..count {
@@ -319,12 +321,15 @@ impl EverythingSdk {
     {
         let ranges = normalize_selection_ranges(request.ranges);
         let requested = ranges.iter().copied().map(|range| range.len()).sum::<u64>();
-        if requested > max_items as u64 {
+        let max_items_as_u64 = u64::try_from(max_items).unwrap_or(u64::MAX);
+        if requested > max_items_as_u64 {
             return Err(EngineError::InvalidSelection(format!(
                 "This operation is limited to {max_items} items at a time"
             )));
         }
-        let mut paths = Vec::with_capacity(requested as usize);
+        let capacity =
+            usize::try_from(requested).expect("validated selection count fits into usize");
+        let mut paths = Vec::with_capacity(capacity);
 
         for range in ranges {
             let mut offset = range.start;
@@ -335,7 +340,8 @@ impl EverythingSdk {
                     ));
                 }
                 let remaining = u64::from(range.end) - u64::from(offset) + 1;
-                let limit = remaining.min(1_024) as u32;
+                let limit =
+                    u32::try_from(remaining.min(1_024)).expect("page size is bounded to 1024");
                 let page = self.query(QueryRequest {
                     query: request.query.clone(),
                     offset,
@@ -343,7 +349,8 @@ impl EverythingSdk {
                     sort: request.sort,
                     request_id: request.request_id,
                 })?;
-                let returned = page.items.len() as u32;
+                let returned =
+                    u32::try_from(page.items.len()).expect("page contains at most 1024 items");
                 if returned == 0 {
                     break;
                 }
@@ -532,13 +539,16 @@ fn map_sort(column: SortColumn, direction: SortDirection) -> (u32, i32) {
 
 fn filetime_to_unix(filetime: u64) -> Option<i64> {
     let seconds = filetime / 10_000_000;
-    (seconds >= WINDOWS_TO_UNIX_SECONDS).then_some((seconds - WINDOWS_TO_UNIX_SECONDS) as i64)
+    if seconds < WINDOWS_TO_UNIX_SECONDS {
+        return None;
+    }
+    i64::try_from(seconds - WINDOWS_TO_UNIX_SECONDS).ok()
 }
 
 fn stable_id(path: &str) -> String {
     let mut fnv1a_64_hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in path.as_bytes() {
-        fnv1a_64_hash ^= *byte as u64;
+        fnv1a_64_hash ^= u64::from(*byte);
         fnv1a_64_hash = fnv1a_64_hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     format!("{fnv1a_64_hash:016x}")

@@ -83,7 +83,7 @@ impl ResultColumns {
             return;
         }
 
-        let delta = event.client_x() as f64 - active.start_x;
+        let delta = f64::from(event.client_x()) - active.start_x;
         let next_left = (active.start_left + delta).clamp(minimum_left, pair_width - minimum_right);
         let next_right = pair_width - next_left;
         let left_percent = next_left / active.total_width * 100.0;
@@ -152,7 +152,7 @@ impl ResultColumns {
         self.resize.set(Some(ColumnResize {
             boundary,
             pointer_id: event.pointer_id(),
-            start_x: event.client_x() as f64,
+            start_x: f64::from(event.client_x()),
             start_left,
             start_right,
             total_width,

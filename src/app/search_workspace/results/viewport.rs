@@ -94,8 +94,8 @@ impl ResultViewport {
         else {
             return;
         };
-        self.scroll_top.set(element.scroll_top() as f64);
-        self.height.set(element.client_height() as f64);
+        self.scroll_top.set(f64::from(element.scroll_top()));
+        self.height.set(f64::from(element.client_height()));
         self.update_width_and_columns(&element);
     }
 
@@ -103,7 +103,7 @@ impl ResultViewport {
         self.scroll_top.set(0.0);
         if let Some(list) = self.list_ref.get() {
             list.set_scroll_top(0);
-            self.height.set(list.client_height() as f64);
+            self.height.set(f64::from(list.client_height()));
         }
     }
 
@@ -115,17 +115,17 @@ impl ResultViewport {
         let columns = self.columns.get_untracked().max(1);
         let visual_row = index / columns;
         let top = if mode.is_grid() {
-            GRID_PADDING + visual_row as f64 * mode.item_height()
+            GRID_PADDING + f64::from(visual_row) * mode.item_height()
         } else {
-            index as f64 * RESULT_ROW_HEIGHT
+            f64::from(index) * RESULT_ROW_HEIGHT
         };
         let bottom = top + mode.item_height();
-        let current_top = list.scroll_top() as f64;
-        let current_bottom = current_top + list.client_height() as f64;
+        let current_top = f64::from(list.scroll_top());
+        let current_bottom = current_top + f64::from(list.client_height());
         if top < current_top {
             self.set_scroll_top(top.max(0.0));
         } else if bottom > current_bottom {
-            self.set_scroll_top(bottom - list.client_height() as f64);
+            self.set_scroll_top(bottom - f64::from(list.client_height()));
         }
     }
 
@@ -138,14 +138,14 @@ impl ResultViewport {
         let width = self
             .list_ref
             .get()
-            .map(|list| list.client_width() as f64)
+            .map(|list| f64::from(list.client_width()))
             .unwrap_or_else(|| self.grid_width.get_untracked());
         let columns = calculate_columns(mode, width);
         self.columns.set(columns);
         let target = if mode.is_grid() {
-            (anchor / columns) as f64 * mode.item_height()
+            f64::from(anchor / columns) * mode.item_height()
         } else {
-            anchor as f64 * RESULT_ROW_HEIGHT
+            f64::from(anchor) * RESULT_ROW_HEIGHT
         };
         self.set_scroll_top(target);
         store_view_mode(mode);
@@ -154,10 +154,10 @@ impl ResultViewport {
     pub fn canvas_height(self, total: u32) -> f64 {
         let mode = self.mode.get();
         if !mode.is_grid() {
-            return total as f64 * RESULT_ROW_HEIGHT;
+            return f64::from(total) * RESULT_ROW_HEIGHT;
         }
         let rows = total.div_ceil(self.columns.get().max(1));
-        GRID_PADDING * 2.0 + rows as f64 * mode.item_height()
+        GRID_PADDING * 2.0 + f64::from(rows) * mode.item_height()
     }
 
     pub fn item_style(self, index: u32) -> String {
@@ -165,19 +165,19 @@ impl ResultViewport {
         if !mode.is_grid() {
             return format!(
                 "transform: translateY({}px)",
-                index as f64 * RESULT_ROW_HEIGHT
+                f64::from(index) * RESULT_ROW_HEIGHT
             );
         }
 
         let columns = self.columns.get_untracked().max(1);
         let width = self.grid_width.get_untracked();
-        let cell_width = ((width - GRID_PADDING * 2.0 - GRID_GAP * (columns - 1) as f64)
-            / columns as f64)
-            .max(mode.min_width());
+        let cell_width = ((width - GRID_PADDING * 2.0 - GRID_GAP * f64::from(columns - 1))
+            / f64::from(columns))
+        .max(mode.min_width());
         let column = index % columns;
         let row = index / columns;
-        let x = GRID_PADDING + column as f64 * (cell_width + GRID_GAP);
-        let y = GRID_PADDING + row as f64 * mode.item_height();
+        let x = GRID_PADDING + f64::from(column) * (cell_width + GRID_GAP);
+        let y = GRID_PADDING + f64::from(row) * mode.item_height();
         format!(
             "width: {cell_width}px; height: {}px; transform: translate3d({x}px, {y}px, 0)",
             mode.item_height() - GRID_GAP,
@@ -193,11 +193,13 @@ impl ResultViewport {
         let rows = (self.height.get_untracked() / mode.item_height())
             .floor()
             .max(1.0) as i32;
-        rows * self.columns.get_untracked().max(1) as i32
+        rows * i32::try_from(self.columns.get_untracked().max(1))
+            .expect("the grid column count fits in i32")
     }
 
     pub fn navigation_delta(self, key: &str) -> Option<i32> {
-        let columns = self.columns.get_untracked().max(1) as i32;
+        let columns = i32::try_from(self.columns.get_untracked().max(1))
+            .expect("the grid column count fits in i32");
         match (self.mode.get_untracked(), key) {
             (_, "ArrowDown") => Some(columns),
             (_, "ArrowUp") => Some(-columns),
@@ -211,7 +213,7 @@ impl ResultViewport {
         let Some(list) = self.list_ref.get() else {
             return;
         };
-        let height = list.client_height() as f64;
+        let height = f64::from(list.client_height());
         if (height - self.height.get_untracked()).abs() > 0.5 {
             self.height.set(height);
         }
@@ -221,14 +223,14 @@ impl ResultViewport {
     fn update_width_and_columns(self, list: &HtmlDivElement) {
         let mode = self.mode.get_untracked();
         let width = if mode.is_grid() {
-            list.client_width() as f64
+            f64::from(list.client_width())
         } else {
             match list.query_selector(".virtual-canvas") {
                 Ok(Some(canvas)) => canvas.get_bounding_client_rect().width(),
-                Ok(None) => list.client_width() as f64,
+                Ok(None) => f64::from(list.client_width()),
                 Err(error) => {
                     diagnostics::warn_js("Unable to locate the result canvas.", &error);
-                    list.client_width() as f64
+                    f64::from(list.client_width())
                 }
             }
         };
@@ -236,13 +238,13 @@ impl ResultViewport {
             self.grid_width.set(width);
         }
 
-        let next_columns = calculate_columns(mode, list.client_width() as f64);
+        let next_columns = calculate_columns(mode, f64::from(list.client_width()));
         let current_columns = self.columns.get_untracked().max(1);
         if next_columns != current_columns {
             let anchor = self.first_visible_index();
             self.columns.set(next_columns);
             if mode.is_grid() {
-                self.set_scroll_top((anchor / next_columns) as f64 * mode.item_height());
+                self.set_scroll_top(f64::from(anchor / next_columns) * mode.item_height());
             }
         }
     }

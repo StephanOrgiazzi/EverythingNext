@@ -112,7 +112,8 @@ impl SearchResults {
 
     pub fn item_at(self, index: u32) -> Option<SearchResult> {
         let page = index / PAGE_SIZE;
-        let within_page = (index % PAGE_SIZE) as usize;
+        let within_page = usize::try_from(index % PAGE_SIZE)
+            .expect("an index within a page always fits in usize");
         self.pages.with(|cache| {
             cache
                 .get(&page)
@@ -246,7 +247,9 @@ mod tests {
 
     #[test]
     fn page_cache_keeps_the_pages_nearest_to_the_latest_request() {
-        let mut cache = (0..=PAGE_CACHE_LIMIT as u32)
+        let page_cache_limit =
+            u32::try_from(PAGE_CACHE_LIMIT).expect("the page cache limit fits in u32");
+        let mut cache = (0..=page_cache_limit)
             .map(|page| (page, Vec::<SearchResult>::new()))
             .collect::<BTreeMap<_, _>>();
 
@@ -255,7 +258,7 @@ mod tests {
         assert_eq!(cache.len(), PAGE_CACHE_LIMIT);
         assert!(cache.contains_key(&4));
         assert!(
-            cache.contains_key(&0) ^ cache.contains_key(&(PAGE_CACHE_LIMIT as u32)),
+            cache.contains_key(&0) ^ cache.contains_key(&page_cache_limit),
             "one of the two equally distant edge pages should be evicted"
         );
     }

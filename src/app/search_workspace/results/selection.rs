@@ -90,7 +90,10 @@ impl ResultSelection {
         let next = match movement {
             FocusMove::Absolute(index) => index.min(total - 1),
             FocusMove::Relative(delta) => match self.focused_index.get_untracked() {
-                Some(current) => (current as i64 + delta as i64).clamp(0, total as i64 - 1) as u32,
+                Some(current) => u32::try_from(
+                    (i64::from(current) + i64::from(delta)).clamp(0, i64::from(total) - 1),
+                )
+                .expect("the clamped focus index fits in u32"),
                 None if delta < 0 => total - 1,
                 None => 0,
             },

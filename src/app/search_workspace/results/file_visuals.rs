@@ -53,7 +53,7 @@ pub(crate) fn FileVisual(
         let pixel_ratio = web_sys::window()
             .map(|window| window.device_pixel_ratio())
             .unwrap_or(1.0);
-        let pixel_size = ((visual_size as f64 * pixel_ratio).ceil() as u32).clamp(32, 256);
+        let pixel_size = ((f64::from(visual_size) * pixel_ratio).ceil() as u32).clamp(32, 256);
         request_thumbnail(path.clone(), pixel_size, file_size, modified_unix)
     });
 

@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query = env::var("EVERYTHING_BENCH_QUERY").unwrap_or_else(|_| "*.rs".into());
     let iterations = env::var("EVERYTHING_BENCH_ITERATIONS")
         .ok()
-        .and_then(|value| value.parse::<usize>().ok())
+        .and_then(|value| value.parse::<u32>().ok())
         .unwrap_or(40)
         .max(5);
     let mut engine = EverythingEngine::new()?;
@@ -27,7 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     warm_up_engine(&mut engine, &query)?;
 
-    let mut durations = Vec::with_capacity(iterations);
+    let mut durations = Vec::with_capacity(
+        usize::try_from(iterations)
+            .expect("u32 iteration counts fit into usize on supported Windows targets"),
+    );
     let mut total_results = 0;
     for request_id in 1..=iterations {
         let started = Instant::now();
@@ -36,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             offset: 0,
             limit: 256,
             sort: SortSpec::default(),
-            request_id: request_id as u32,
+            request_id,
         })?;
         durations.push(started.elapsed().as_secs_f64() * 1_000.0);
         total_results = page.total;

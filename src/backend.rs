@@ -237,8 +237,8 @@ mod preview {
                     .map(|(p, _)| p.to_string())
                     .unwrap_or_default(),
                 full_path: path,
-                size: (!is_dir).then_some((index as u64 + 1) * 48_713),
-                modified_unix: Some(1_720_000_000 + (index as i64 * 733)),
+                size: (!is_dir).then_some((u64::from(index) + 1) * 48_713),
+                modified_unix: Some(1_720_000_000 + (i64::from(index) * 733)),
                 is_dir,
             });
         }

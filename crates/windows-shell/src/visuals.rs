@@ -177,11 +177,13 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
         .map_err(|error| {
             ShellError::Visual(format!("Unable to create the Windows Shell item: {error}"))
         })?;
+    let requested_size = i32::try_from(size)
+        .map_err(|_| ShellError::Visual("The requested preview size is too large".into()))?;
     let bitmap = match unsafe {
         factory.GetImage(
             SIZE {
-                cx: size as i32,
-                cy: size as i32,
+                cx: requested_size,
+                cy: requested_size,
             },
             SIIGBF_RESIZETOFIT,
         )
@@ -194,7 +196,7 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
     let described = unsafe {
         GetObjectW(
             HGDIOBJ(bitmap.0 .0),
-            size_of::<BITMAP>() as i32,
+            i32::try_from(size_of::<BITMAP>()).expect("BITMAP size fits in i32"),
             Some((&mut description as *mut BITMAP).cast()),
         )
     };
@@ -204,18 +206,24 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
         ));
     }
 
-    let width = description.bmWidth as u32;
+    let width = u32::try_from(description.bmWidth)
+        .map_err(|_| ShellError::Visual("Windows returned an invalid bitmap width".into()))?;
     let height = description.bmHeight.unsigned_abs();
+    let height_i32 = i32::try_from(height)
+        .map_err(|_| ShellError::Visual("Windows returned an invalid bitmap height".into()))?;
     let byte_count = width
         .checked_mul(height)
         .and_then(|pixels| pixels.checked_mul(4))
         .ok_or_else(|| ShellError::Visual("The preview bitmap is too large".into()))?;
-    let mut bgra = vec![0_u8; byte_count as usize];
+    let buffer_len = usize::try_from(byte_count)
+        .map_err(|_| ShellError::Visual("The preview bitmap is too large".into()))?;
+    let mut bgra = vec![0_u8; buffer_len];
     let mut info = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
-            biSize: size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: width as i32,
-            biHeight: -(height as i32),
+            biSize: u32::try_from(size_of::<BITMAPINFOHEADER>())
+                .expect("BITMAPINFOHEADER size fits in u32"),
+            biWidth: description.bmWidth,
+            biHeight: -height_i32,
             biPlanes: 1,
             biBitCount: 32,
             biCompression: BI_RGB.0,
@@ -241,7 +249,7 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
             DIB_RGB_COLORS,
         )
     };
-    if copied != height as i32 {
+    if copied != height_i32 {
         return Err(ShellError::Visual(
             "Unable to read the preview bitmap".into(),
         ));
@@ -255,7 +263,8 @@ fn extract_visual_data_uri(path: &str, size: u32) -> Result<Option<String>, Shel
             if alpha == 0 || alpha == 255 {
                 channel
             } else {
-                ((u16::from(channel) * 255 / u16::from(alpha)).min(255)) as u8
+                u8::try_from((u16::from(channel) * 255 / u16::from(alpha)).min(255))
+                    .expect("unpremultiplied channel fits in u8")
             }
         };
         rgba.extend_from_slice(&[
