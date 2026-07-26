@@ -78,17 +78,6 @@ Sans override explicite, l’application installée utilise `EverythingModern` e
 
 L’installateur NSIS autonome est produit dans `target\release\bundle\nsis`. Le build échoue si le SDK3, le moteur ou les licences tierces ne sont pas présents.
 
-## Benchmark du bridge Everything
-
-Lancez Everything Modern une première fois, puis :
-
-```powershell
-.\scripts\benchmark.ps1 -Query "*.pdf" -Iterations 40
-```
-
-Le script mesure les latences p50, p95 et maximale d’une page de 256 résultats après warm-up.
-
-
 ## Raccourcis
 
 | Raccourci | Action |
