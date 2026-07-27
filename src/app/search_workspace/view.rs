@@ -11,8 +11,21 @@ use crate::{backend, window};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlInputElement;
+
+async fn apply_pending_search_query(
+    query: RwSignal<String>,
+    search_ref: NodeRef<leptos::html::Input>,
+) {
+    if let Ok(Some(pending_query)) = backend::take_pending_search_query().await {
+        query.set(pending_query);
+        if let Some(input) = search_ref.get() {
+            let _ = input.focus();
+            input.select();
+        }
+    }
+}
 
 #[component]
 #[allow(
@@ -48,17 +61,22 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
         }
     });
 
-    let launch_search_ref = search_ref;
+    let event_query = query;
+    let event_search_ref = search_ref;
+    let launch_callback = Closure::<dyn FnMut()>::new(move || {
+        spawn_local(apply_pending_search_query(event_query, event_search_ref));
+    });
     spawn_local(async move {
-        loop {
-            if let Ok(Some(pending_query)) = backend::take_pending_search_query().await {
-                query.set(pending_query);
-                if let Some(input) = launch_search_ref.get() {
-                    let _ = input.focus();
-                    input.select();
-                }
-            }
-            TimeoutFuture::new(150).await;
+        let listening = backend::listen_for_search_query(
+            launch_callback
+                .as_ref()
+                .unchecked_ref::<js_sys::Function>(),
+        )
+        .await
+        .is_ok();
+        apply_pending_search_query(query, search_ref).await;
+        if listening {
+            launch_callback.forget();
         }
     });
 
