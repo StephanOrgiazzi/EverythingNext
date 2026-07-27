@@ -35,6 +35,7 @@ struct ColumnResize {
 pub(crate) struct ResultColumns {
     widths: RwSignal<Option<ColumnWidths>>,
     resize: RwSignal<Option<ColumnResize>>,
+    scroll_left: RwSignal<i32>,
     header_ref: NodeRef<leptos::html::Div>,
 }
 
@@ -43,6 +44,7 @@ impl ResultColumns {
         Self {
             widths: RwSignal::new(None),
             resize: RwSignal::new(None),
+            scroll_left: RwSignal::new(0),
             header_ref: NodeRef::new(),
         }
     }
@@ -57,6 +59,10 @@ impl ResultColumns {
         } else {
             String::new()
         };
+        style.push_str(&format!(
+            ";--results-scroll-left:{}px",
+            self.scroll_left.get()
+        ));
         if let Some(widths) = self.widths.get() {
             style.push_str(&format!(
                 ";--col-name:{:.4}%;--col-path:{:.4}%;--col-type:{:.4}%;--col-size:{:.4}%;--col-date:{:.4}%",
@@ -64,6 +70,16 @@ impl ResultColumns {
             ));
         }
         style
+    }
+
+    pub fn update_scroll_offset(self, event: &web_sys::Event) {
+        let Some(element) = event
+            .target()
+            .and_then(|target| target.dyn_into::<HtmlDivElement>().ok())
+        else {
+            return;
+        };
+        self.scroll_left.set(element.scroll_left());
     }
 
     pub fn update_resize(self, event: PointerEvent) {
