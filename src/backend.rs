@@ -249,7 +249,7 @@ mod preview {
             let path = if is_dir {
                 format!(r"C:\Users\Public\Documents\{name}")
             } else {
-                format!(r"C:\Users\Public\Documents\Everything Modern\{name}")
+                format!(r"C:\Users\Public\Documents\Everything Next\{name}")
             };
             items.push(SearchResult {
                 id: format!("mock-{index}"),

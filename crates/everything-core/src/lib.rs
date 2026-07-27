@@ -29,7 +29,7 @@ pub enum EngineError {
     SdkLoad(String),
     #[error("The bundled Everything 1.5 runtime was not found. Run scripts/install-everything-runtime.ps1 or set EVERYTHING_ENGINE_EXE.")]
     EngineNotFound,
-    #[error("Everything is already running. Exit Everything before starting Everything Modern.")]
+    #[error("Everything is already running. Exit Everything before starting Everything Next.")]
     DefaultInstanceInUse,
     #[error("Invalid Everything instance name: {0}")]
     InvalidInstance(String),
@@ -39,11 +39,11 @@ pub enum EngineError {
     EngineStart(String),
     #[error("Unable to connect Everything SDK3 to {instance} (code 0x{code:08X}). Make sure Everything 1.5 is running in that instance.")]
     ConnectionFailed { instance: String, code: u32 },
-    #[error("Unsupported Everything version: {0}. Everything Modern requires Everything 1.5.")]
+    #[error("Unsupported Everything version: {0}. Everything Next requires Everything 1.5.")]
     UnsupportedEverythingVersion(String),
     #[error("SDK3 call {operation} failed (code 0x{code:08X}).")]
     SdkCall { operation: &'static str, code: u32 },
-    #[error("Everything Modern requires Windows to access the Everything engine.")]
+    #[error("Everything Next requires Windows to access the Everything engine.")]
     UnsupportedPlatform,
     #[error("Invalid selection: {0}")]
     InvalidSelection(String),

@@ -1,12 +1,12 @@
 [package]
-name = "everything-modern"
+name = "everything-next"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [lib]
-name = "everything_modern_lib"
+name = "everything_next_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

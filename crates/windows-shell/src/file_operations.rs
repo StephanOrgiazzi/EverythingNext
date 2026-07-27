@@ -134,7 +134,7 @@ fn unique_temporary_sibling(source: &Path) -> Result<PathBuf, ShellError> {
         .ok_or_else(|| ShellError::InvalidPath(source.to_string_lossy().into_owned()))?;
     let process = std::process::id();
     for attempt in 0..1_024_u32 {
-        let candidate = parent.join(format!(".everything-modern-rename-{process}-{attempt}.tmp"));
+        let candidate = parent.join(format!(".everything-next-rename-{process}-{attempt}.tmp"));
         if !candidate.exists() {
             return Ok(candidate);
         }
@@ -227,7 +227,7 @@ mod tests {
             .expect("clock")
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "everything-modern-test-{}-{unique}",
+            "everything-next-test-{}-{unique}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).expect("create test directory");
@@ -252,7 +252,7 @@ mod tests {
             .expect("clock")
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "everything-modern-case-test-{}-{unique}",
+            "everything-next-case-test-{}-{unique}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).expect("create test directory");

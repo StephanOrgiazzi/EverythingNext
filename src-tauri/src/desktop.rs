@@ -15,7 +15,7 @@ const SEARCH_ARG: &str = "-s";
 #[cfg(all(windows, not(debug_assertions)))]
 const AUTOSTART_VALUE_NAME: &str = "Everything Next";
 #[cfg(all(windows, not(debug_assertions)))]
-const LEGACY_AUTOSTART_VALUE_NAME: &str = "Everything Modern";
+const LEGACY_AUTOSTART_VALUE_NAME: &str = "Everything Next";
 const TRAY_OPEN_ID: &str = "open";
 const TRAY_QUIT_ID: &str = "quit";
 

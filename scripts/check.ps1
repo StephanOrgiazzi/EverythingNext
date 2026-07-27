@@ -53,8 +53,8 @@ cargo test -p everything-core --locked
 cargo test -p windows-shell --locked
 cargo check -p everything-core --locked
 cargo check -p windows-shell --locked
-cargo check -p everything-modern-ui --target wasm32-unknown-unknown --locked
-cargo check -p everything-modern --locked
+cargo check -p everything-next-ui --target wasm32-unknown-unknown --locked
+cargo check -p everything-next --locked
 trunk build --release
 
 Write-Host "Validation completed." -ForegroundColor Green

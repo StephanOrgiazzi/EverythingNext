@@ -62,7 +62,7 @@ pub(crate) fn FileActionDialogs(
             <div class="modal-backdrop fixed inset-0 z-[200] grid place-items-center bg-black/35 p-6 backdrop-blur-[4px]">
                 <div class="modal-card grid w-[min(440px,100%)] select-text gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-5 shadow-[var(--shadow)] [&>h2]:m-0 [&>h2]:text-lg [&>h2]:font-semibold [&>p]:m-0 [&>p]:leading-[1.45] [&>p]:text-[var(--muted)]" role="status" aria-live="polite">
                     <h2>"Preparing deletion…"</h2>
-                    <p>"Everything Modern is capturing an immutable list of the selected files."</p>
+                    <p>"Everything Next is capturing an immutable list of the selected files."</p>
                 </div>
             </div>
         </Show>

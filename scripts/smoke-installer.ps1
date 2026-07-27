@@ -4,8 +4,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$uninstallKey = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Everything Modern"
-$pipeName = "Everything Service (EverythingModern)"
+$uninstallKey = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Everything Next"
+$pipeName = "Everything Service (EverythingNext)"
 $engineProcess = $null
 
 function Test-ServicePipe {
@@ -33,11 +33,11 @@ function Wait-ServicePipe([bool]$Available) {
     }
     Start-Sleep -Milliseconds 100
   }
-  throw "Timed out waiting for the Everything Modern service pipe availability to become $Available."
+  throw "Timed out waiting for the Everything Next service pipe availability to become $Available."
 }
 
 if (Test-Path -LiteralPath $uninstallKey) {
-  throw "Everything Modern is already installed on this runner."
+  throw "Everything Next is already installed on this runner."
 }
 
 $installer = Get-Item -LiteralPath $InstallerPath -ErrorAction Stop
@@ -73,7 +73,7 @@ try {
 
   Wait-ServicePipe $true
 
-  $engineDataDirectory = Join-Path $env:LOCALAPPDATA "EverythingModern\InstallerSmoke"
+  $engineDataDirectory = Join-Path $env:LOCALAPPDATA "EverythingNext\InstallerSmoke"
   New-Item -ItemType Directory -Path $engineDataDirectory -Force | Out-Null
   $engineConfig = Join-Path $engineDataDirectory "Everything.ini"
   $engineDatabase = Join-Path $engineDataDirectory "Everything.db"
@@ -87,14 +87,14 @@ service_pipe_name=$pipeName
 "@ | Set-Content -LiteralPath $engineConfig -Encoding utf8
 
   $engineProcess = Start-Process -FilePath $enginePath -ArgumentList @(
-    "-instance", "EverythingModern",
+    "-instance", "EverythingNext",
     "-first-instance",
     "-startup",
     "-config", "`"$engineConfig`"",
     "-db", "`"$engineDatabase`""
   ) -PassThru
 
-  $ipcPipe = "Everything IPC (EverythingModern)"
+  $ipcPipe = "Everything IPC (EverythingNext)"
   $ipcDeadline = [DateTime]::UtcNow.AddSeconds(15)
   while (
     -not (Test-Path -LiteralPath "\\.\pipe\$ipcPipe") -and

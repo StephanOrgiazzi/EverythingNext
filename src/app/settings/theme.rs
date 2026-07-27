@@ -5,7 +5,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use super::storage;
 use crate::diagnostics;
 
-const STORAGE_KEY: &str = "everything-modern.theme";
+const STORAGE_KEY: &str = "everything-next.theme";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Theme {
