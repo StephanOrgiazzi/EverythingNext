@@ -21,7 +21,7 @@ jobs:
         shell: python
         run: |
           import pathlib, subprocess
-          workflow = pathlib.Path(".github/workflows/rename-everything-next.yml")
+          workflow_directory = pathlib.Path(".github/workflows")
           replacements = (
               ("Everything Modern", "Everything Next"),
               ("EverythingModern", "EverythingNext"),
@@ -32,7 +32,7 @@ jobs:
               if not raw:
                   continue
               path = pathlib.Path(raw.decode())
-              if path == workflow:
+              if workflow_directory in path.parents:
                   continue
               try:
                   before = path.read_text(encoding="utf-8")
