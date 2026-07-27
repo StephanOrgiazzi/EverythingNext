@@ -38,6 +38,7 @@ mod command {
     pub const ENGINE_STATUS: &str = "engine_status";
     pub const BEGIN_SEARCH_GENERATION: &str = "begin_search_generation";
     pub const SEARCH: &str = "search_everything";
+    pub const TAKE_PENDING_SEARCH_QUERY: &str = "take_pending_search_query";
     pub const FILE_VISUAL: &str = "get_file_visual";
     pub const OPEN_PATH: &str = "open_path";
     pub const REVEAL_PATH: &str = "reveal_path";
@@ -112,6 +113,13 @@ pub async fn status() -> EngineStatus {
             version: None,
         },
     }
+}
+
+pub async fn take_pending_search_query() -> Result<Option<String>, String> {
+    if !has_tauri() {
+        return Ok(None);
+    }
+    invoke(command::TAKE_PENDING_SEARCH_QUERY, &()).await
 }
 
 pub async fn begin_generation(request_id: u32) -> Result<(), String> {
