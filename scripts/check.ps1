@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $projectRoot
 
@@ -48,8 +49,9 @@ $legacyIdentifiers = @(
   ("everything" + "Modern"),
   ("everything" + "modern")
 )
+$PSNativeCommandUseErrorActionPreference = $false
 foreach ($legacyIdentifier in $legacyIdentifiers) {
-  $matches = & git grep -n -F -- $legacyIdentifier 2>$null
+  $matches = & git.exe grep -n -F -- $legacyIdentifier 2>$null
   if ($LASTEXITCODE -eq 0) {
     throw "Legacy product identifier '$legacyIdentifier' remains:`n$($matches -join "`n")"
   }
@@ -57,6 +59,7 @@ foreach ($legacyIdentifier in $legacyIdentifiers) {
     throw "git grep failed while checking '$legacyIdentifier'."
   }
 }
+$PSNativeCommandUseErrorActionPreference = $true
 
 if (-not (Test-Path "Cargo.lock")) {
   cargo generate-lockfile

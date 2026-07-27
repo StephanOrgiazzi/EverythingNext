@@ -207,7 +207,10 @@ mod tests {
     fn search_argument_matching_is_case_insensitive() {
         let arguments = ["EverythingNext.exe", "-S", "invoice"];
 
-        assert_eq!(search_query_from_args(arguments), Some("invoice".to_string()));
+        assert_eq!(
+            search_query_from_args(arguments),
+            Some("invoice".to_string())
+        );
     }
 
     #[test]

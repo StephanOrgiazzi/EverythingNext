@@ -68,9 +68,7 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
     });
     spawn_local(async move {
         let listening = backend::listen_for_search_query(
-            launch_callback
-                .as_ref()
-                .unchecked_ref::<js_sys::Function>(),
+            launch_callback.as_ref().unchecked_ref::<js_sys::Function>(),
         )
         .await
         .is_ok();

@@ -35,9 +35,8 @@ extern "C" {
     fn has_tauri() -> bool;
 
     #[wasm_bindgen(catch, js_name = everythingNextListenForSearchQuery)]
-    async fn tauri_listen_for_search_query(
-        callback: &js_sys::Function,
-    ) -> Result<JsValue, JsValue>;
+    async fn tauri_listen_for_search_query(callback: &js_sys::Function)
+        -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(catch, js_name = everythingNextPickFolder)]
     async fn tauri_pick_folder() -> Result<JsValue, JsValue>;

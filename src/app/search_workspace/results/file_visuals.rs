@@ -54,9 +54,8 @@ impl IconSourceCache {
                 let retry_due = entry
                     .retry_after_ms
                     .is_some_and(|retry_after| retry_after <= now);
-                let should_load = !entry.loading
-                    && entry.source.get_untracked() == Some(None)
-                    && retry_due;
+                let should_load =
+                    !entry.loading && entry.source.get_untracked() == Some(None) && retry_due;
                 if should_load {
                     entry.loading = true;
                     entry.generation = retry_generation;
@@ -135,9 +134,7 @@ fn icon_source(key: String) -> (IconSource, bool, u64) {
 
 fn finish_icon_load(key: &str, generation: u64, retry_after_ms: Option<f64>) {
     ICON_SOURCES.with(|sources| {
-        sources
-            .borrow_mut()
-            .finish(key, generation, retry_after_ms);
+        sources.borrow_mut().finish(key, generation, retry_after_ms);
     });
 }
 
@@ -270,7 +267,9 @@ pub(crate) fn FileVisual(
         let animate_reveal = subscription.animate_reveal;
         view! {
             <span class="icon-result-visual thumbnail-stack grid size-[var(--view-icon-size)] shrink-0 place-items-center [&>*]:[grid-area:1/1]">
-                {move || fallback_source.get().flatten().is_none().then(|| fallback_icon(is_dir))}
+                {move || fallback_source.get().flatten().is_none().then(|| view! {
+                    <FileIcon path=path.clone() is_dir />
+                })}
                 {move || source.get().flatten().map(|source| view! {
                     <img
                         class="file-visual-image size-full object-contain"

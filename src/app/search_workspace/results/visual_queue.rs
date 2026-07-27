@@ -4,6 +4,10 @@ use leptos::task::spawn_local;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 const THUMBNAIL_WORKERS: usize = 4;
 const CACHE_MAX_BYTES: usize = 24 * 1024 * 1024;
@@ -27,14 +31,16 @@ enum ResourceState {
 }
 
 struct ThumbnailResource {
+    id: u64,
     source: ThumbnailSource,
     subscribers: Cell<usize>,
     state: Cell<ResourceState>,
 }
 
 impl ThumbnailResource {
-    fn new() -> Self {
+    fn new(id: u64) -> Self {
         Self {
+            id,
             source: ArcRwSignal::new(None),
             subscribers: Cell::new(1),
             state: Cell::new(ResourceState::Pending),
@@ -54,19 +60,19 @@ pub(super) struct ThumbnailSubscription {
     pub source: ThumbnailSource,
     pub animate_reveal: bool,
     key: Option<ThumbnailKey>,
-    resource: Option<ThumbnailResourceRef>,
-    cancelled: Rc<Cell<bool>>,
+    resource_id: Option<u64>,
+    cancelled: Arc<AtomicBool>,
 }
 
 impl ThumbnailSubscription {
     pub fn cancel(&self) {
-        if self.cancelled.replace(true) {
+        if self.cancelled.swap(true, Ordering::Relaxed) {
             return;
         }
-        let (Some(key), Some(resource)) = (&self.key, &self.resource) else {
+        let (Some(key), Some(resource_id)) = (&self.key, self.resource_id) else {
             return;
         };
-        PIPELINE.with(|pipeline| pipeline.borrow_mut().unsubscribe(key, resource));
+        PIPELINE.with(|pipeline| pipeline.borrow_mut().unsubscribe(key, resource_id));
     }
 }
 
@@ -127,6 +133,7 @@ struct ThumbnailPipeline {
     running_workers: usize,
     resources: HashMap<ThumbnailKey, ThumbnailResourceRef>,
     cache: ThumbnailCache,
+    next_resource_id: u64,
 }
 
 impl Default for ThumbnailPipeline {
@@ -136,6 +143,7 @@ impl Default for ThumbnailPipeline {
             running_workers: 0,
             resources: HashMap::new(),
             cache: ThumbnailCache::new(),
+            next_resource_id: 1,
         }
     }
 }
@@ -148,8 +156,8 @@ impl ThumbnailPipeline {
                     source: ArcRwSignal::new(Some(cached)),
                     animate_reveal: false,
                     key: None,
-                    resource: None,
-                    cancelled: Rc::new(Cell::new(false)),
+                    resource_id: None,
+                    cancelled: Arc::new(AtomicBool::new(false)),
                 },
                 0,
             );
@@ -164,14 +172,16 @@ impl ThumbnailPipeline {
                     source: resource.source.clone(),
                     animate_reveal: resource.source.get_untracked().is_none(),
                     key: Some(key),
-                    resource: Some(resource.clone()),
-                    cancelled: Rc::new(Cell::new(false)),
+                    resource_id: Some(resource.id),
+                    cancelled: Arc::new(AtomicBool::new(false)),
                 },
                 0,
             );
         }
 
-        let resource = Rc::new(ThumbnailResource::new());
+        let resource_id = self.next_resource_id;
+        self.next_resource_id = self.next_resource_id.wrapping_add(1);
+        let resource = Rc::new(ThumbnailResource::new(resource_id));
         self.resources.insert(key.clone(), resource.clone());
         self.pending.push_back(QueuedThumbnail {
             key: key.clone(),
@@ -183,25 +193,25 @@ impl ThumbnailPipeline {
                 source: resource.source.clone(),
                 animate_reveal: true,
                 key: Some(key),
-                resource: Some(resource),
-                cancelled: Rc::new(Cell::new(false)),
+                resource_id: Some(resource_id),
+                cancelled: Arc::new(AtomicBool::new(false)),
             },
             workers,
         )
     }
 
-    fn unsubscribe(&mut self, key: &ThumbnailKey, resource: &ThumbnailResourceRef) {
+    fn unsubscribe(&mut self, key: &ThumbnailKey, resource_id: u64) {
         let Some(current) = self.resources.get(key) else {
             return;
         };
-        if !Rc::ptr_eq(current, resource) {
+        if current.id != resource_id {
             return;
         }
 
-        let remaining = resource.subscribers.get().saturating_sub(1);
-        resource.subscribers.set(remaining);
-        if remaining == 0 && resource.state.get() == ResourceState::Pending {
-            resource.state.set(ResourceState::Cancelled);
+        let remaining = current.subscribers.get().saturating_sub(1);
+        current.subscribers.set(remaining);
+        if remaining == 0 && current.state.get() == ResourceState::Pending {
+            current.state.set(ResourceState::Cancelled);
             self.resources.remove(key);
         }
     }
@@ -311,8 +321,7 @@ pub(super) fn request_thumbnail(
         file_size,
         modified_unix,
     };
-    let (subscription, workers) =
-        PIPELINE.with(|pipeline| pipeline.borrow_mut().subscribe(key));
+    let (subscription, workers) = PIPELINE.with(|pipeline| pipeline.borrow_mut().subscribe(key));
     for _ in 0..workers {
         spawn_local(process_thumbnail_queue());
     }
@@ -365,8 +374,8 @@ mod tests {
             let mut pipeline = ThumbnailPipeline::default();
             let item = key("obsolete.mp3", 96, 1);
             let (subscription, _) = pipeline.subscribe(item.clone());
-            let resource = subscription.resource.clone().expect("pending resource");
-            pipeline.unsubscribe(&item, &resource);
+            let resource_id = subscription.resource_id.expect("pending resource");
+            pipeline.unsubscribe(&item, resource_id);
 
             assert!(pipeline.next_request().is_none());
             assert!(pipeline.resources.is_empty());
