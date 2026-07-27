@@ -1,14 +1,10 @@
 use crate::{backend, diagnostics};
-use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use super::visual_queue::request_thumbnail;
-
-const ICON_LOAD_ATTEMPTS: usize = 2;
-const ICON_RETRY_DELAY_MS: u32 = 80;
 
 type IconSource = ArcRwSignal<Option<Option<String>>>;
 
@@ -44,12 +40,6 @@ fn icon_source(key: &str) -> (IconSource, bool) {
         sources.insert(key.to_string(), source.clone());
         (source, true)
     })
-}
-
-fn forget_icon_source(key: &str) {
-    ICON_SOURCES.with(|sources| {
-        sources.borrow_mut().remove(key);
-    });
 }
 
 fn fallback_icon(is_dir: bool) -> AnyView {
@@ -99,30 +89,15 @@ pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
     let (source, should_load) = icon_source(&cache_key);
     if should_load {
         let source_for_load = source.clone();
-        let cache_key = cache_key.clone();
         let path = path.clone();
         spawn_local(async move {
-            let mut last_error = None;
-            for attempt in 0..ICON_LOAD_ATTEMPTS {
-                match backend::visual(&path, false).await {
-                    Ok(Some(icon)) => {
-                        source_for_load.set(Some(Some(icon)));
-                        return;
-                    }
-                    Ok(None) => {}
-                    Err(error) => last_error = Some(error),
-                }
-
-                if attempt + 1 < ICON_LOAD_ATTEMPTS {
-                    TimeoutFuture::new(ICON_RETRY_DELAY_MS).await;
+            match backend::visual(&path, false).await {
+                Ok(icon) => source_for_load.set(Some(icon)),
+                Err(error) => {
+                    diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
+                    source_for_load.set(Some(None));
                 }
             }
-
-            if let Some(error) = last_error {
-                diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
-            }
-            source_for_load.set(Some(None));
-            forget_icon_source(&cache_key);
         });
     }
 
@@ -150,24 +125,22 @@ pub(crate) fn FileVisual(
 
     if let Some(subscription) = subscription {
         let source = subscription.source;
-        let fallback_source = source.clone();
         let animate_reveal = subscription.animate_reveal;
-        let fallback_path = path.clone();
         view! {
             <span class="icon-result-visual thumbnail-stack grid size-[var(--view-icon-size)] shrink-0 place-items-center [&>*]:[grid-area:1/1]">
-                {move || matches!(fallback_source.get(), None | Some(None)).then(|| view! {
-                    <FileIcon path=fallback_path.clone() is_dir />
-                })}
-                {move || source.get().flatten().map(|source| view! {
-                    <img
-                        class="file-visual-image size-full object-contain"
-                        class:thumbnail-reveal=animate_reveal
-                        src=source
-                        alt=""
-                        loading="eager"
-                        decoding=if animate_reveal { "async" } else { "sync" }
-                    />
-                })}
+                {move || match source.get().flatten() {
+                    Some(source) => view! {
+                        <img
+                            class="file-visual-image size-full object-contain"
+                            class:thumbnail-reveal=animate_reveal
+                            src=source
+                            alt=""
+                            loading="eager"
+                            decoding=if animate_reveal { "async" } else { "sync" }
+                        />
+                    }.into_any(),
+                    None => fallback_icon(is_dir),
+                }}
             </span>
         }
         .into_any()
