@@ -41,7 +41,7 @@ jobs:
               if after != before:
                   path.write_text(after, encoding="utf-8", newline="")
       - run: cargo generate-lockfile
-      - run: git rm .github/workflows/rename-everything-next.yml
+      - run: git rm -f .github/workflows/rename-everything-next.yml
       - name: Commit generated rename
         shell: bash
         run: |
