@@ -15,6 +15,10 @@ export function everythingModernHasTauri() {
   return typeof window.__TAURI__?.core?.invoke === "function";
 }
 
+export async function everythingModernListenForSearchQuery(callback) {
+  return await window.__TAURI__.event.listen("open-search-query", () => callback());
+}
+
 export async function everythingModernPickFolder() {
   return await window.__TAURI__.dialog.open({
     directory: true,
@@ -29,6 +33,11 @@ extern "C" {
 
     #[wasm_bindgen(js_name = everythingModernHasTauri)]
     fn has_tauri() -> bool;
+
+    #[wasm_bindgen(catch, js_name = everythingModernListenForSearchQuery)]
+    async fn tauri_listen_for_search_query(
+        callback: &js_sys::Function,
+    ) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(catch, js_name = everythingModernPickFolder)]
     async fn tauri_pick_folder() -> Result<JsValue, JsValue>;
@@ -113,6 +122,16 @@ pub async fn status() -> EngineStatus {
             version: None,
         },
     }
+}
+
+pub async fn listen_for_search_query(callback: &js_sys::Function) -> Result<(), String> {
+    if !has_tauri() {
+        return Ok(());
+    }
+    tauri_listen_for_search_query(callback)
+        .await
+        .map(|_| ())
+        .map_err(js_error_to_string)
 }
 
 pub async fn take_pending_search_query() -> Result<Option<String>, String> {
