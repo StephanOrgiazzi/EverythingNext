@@ -3,7 +3,7 @@
   "productName": "Everything Next",
   "mainBinaryName": "EverythingNext",
   "version": "0.1.0",
-  "identifier": "com.everythingmodern.app",
+  "identifier": "com.everythingnext.app",
   "build": {
     "beforeDevCommand": "trunk serve",
     "devUrl": "http://localhost:1420",

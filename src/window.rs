@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 use crate::diagnostics;
 
 #[wasm_bindgen(inline_js = r#"
-export async function everythingModernWindowAction(action) {
+export async function everythingNextWindowAction(action) {
   const getCurrentWindow = window.__TAURI__?.window?.getCurrentWindow;
   if (!getCurrentWindow) return;
   const appWindow = getCurrentWindow();
@@ -13,7 +13,7 @@ export async function everythingModernWindowAction(action) {
 }
 "#)]
 extern "C" {
-    #[wasm_bindgen(catch, js_name = everythingModernWindowAction)]
+    #[wasm_bindgen(catch, js_name = everythingNextWindowAction)]
     async fn window_action_js(action: &str) -> Result<JsValue, JsValue>;
 }
 

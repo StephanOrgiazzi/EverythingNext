@@ -7,19 +7,19 @@ use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(inline_js = r#"
-export async function everythingModernInvoke(command, args) {
+export async function everythingNextInvoke(command, args) {
   return await window.__TAURI__.core.invoke(command, args);
 }
 
-export function everythingModernHasTauri() {
+export function everythingNextHasTauri() {
   return typeof window.__TAURI__?.core?.invoke === "function";
 }
 
-export async function everythingModernListenForSearchQuery(callback) {
+export async function everythingNextListenForSearchQuery(callback) {
   return await window.__TAURI__.event.listen("open-search-query", () => callback());
 }
 
-export async function everythingModernPickFolder() {
+export async function everythingNextPickFolder() {
   return await window.__TAURI__.dialog.open({
     directory: true,
     multiple: false,
@@ -28,18 +28,18 @@ export async function everythingModernPickFolder() {
 }
 "#)]
 extern "C" {
-    #[wasm_bindgen(catch, js_name = everythingModernInvoke)]
+    #[wasm_bindgen(catch, js_name = everythingNextInvoke)]
     async fn tauri_invoke(command: &str, args: JsValue) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(js_name = everythingModernHasTauri)]
+    #[wasm_bindgen(js_name = everythingNextHasTauri)]
     fn has_tauri() -> bool;
 
-    #[wasm_bindgen(catch, js_name = everythingModernListenForSearchQuery)]
+    #[wasm_bindgen(catch, js_name = everythingNextListenForSearchQuery)]
     async fn tauri_listen_for_search_query(
         callback: &js_sys::Function,
     ) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(catch, js_name = everythingModernPickFolder)]
+    #[wasm_bindgen(catch, js_name = everythingNextPickFolder)]
     async fn tauri_pick_folder() -> Result<JsValue, JsValue>;
 }
 
