@@ -21,6 +21,7 @@ jobs:
         shell: python
         run: |
           import pathlib, subprocess
+          workflow = pathlib.Path(".github/workflows/rename-everything-next.yml")
           replacements = (
               ("Everything Modern", "Everything Next"),
               ("EverythingModern", "EverythingNext"),
@@ -31,6 +32,8 @@ jobs:
               if not raw:
                   continue
               path = pathlib.Path(raw.decode())
+              if path == workflow:
+                  continue
               try:
                   before = path.read_text(encoding="utf-8")
               except (UnicodeDecodeError, OSError):
@@ -41,7 +44,6 @@ jobs:
               if after != before:
                   path.write_text(after, encoding="utf-8", newline="")
       - run: cargo generate-lockfile
-      - run: git rm -f .github/workflows/rename-everything-next.yml
       - name: Commit generated rename
         shell: bash
         run: |
