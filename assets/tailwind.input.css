@@ -152,6 +152,7 @@
     grid-template-columns:
       var(--col-name, minmax(280px, 1.15fr))
       var(--col-path, minmax(260px, 1fr))
+      var(--col-type, 100px)
       var(--col-size, 110px)
       var(--col-date, 156px);
   }
@@ -203,7 +204,7 @@
 
   .virtual-canvas {
     position: relative;
-    min-width: 760px;
+    min-width: 860px;
   }
 
   .result-row {
@@ -242,6 +243,7 @@
   }
 
   .cell.col-path,
+  .cell.col-type,
   .cell.col-size,
   .cell.col-date {
     color: var(--muted);
@@ -316,6 +318,10 @@
     width: 72%;
   }
 
+  .type-skeleton {
+    width: 52px;
+  }
+
   .size-skeleton {
     width: 48px;
     margin-left: auto;
@@ -340,6 +346,7 @@
       grid-template-columns:
         var(--col-name, minmax(260px, 1.15fr))
         var(--col-path, minmax(220px, 1fr))
+        var(--col-type, 90px)
         var(--col-size, 100px)
         var(--col-date, 140px);
     }

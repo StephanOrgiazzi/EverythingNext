@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum SortColumn {
     Name,
     Path,
+    Extension,
     Size,
     Modified,
 }

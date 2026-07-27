@@ -78,7 +78,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 aria-colcount=move || if viewport.mode.get().is_grid() {
                     viewport.columns.get()
                 } else {
-                    4
+                    5
                 }
                 aria-rowcount=move || viewport.row_count(total.get())
                 on:scroll=on_scroll
@@ -146,6 +146,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                                         <span class="file-name" title=item.name.clone()>{item.name.clone()}</span>
                                                     </div>
                                                     <div class="cell col-path" role="gridcell" title=item.parent_path.clone()>{item.parent_path.clone()}</div>
+                                                    <div class="cell col-type" role="gridcell">{file_type(&item.name, item.is_dir)}</div>
                                                     <div class="cell col-size" role="gridcell">{file_size(item.size, item.is_dir)}</div>
                                                     <div class="cell col-date" role="gridcell">{modified_date(item.modified_unix)}</div>
                                                 </div>
@@ -240,6 +241,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                             <div class="result-row skeleton-row" style=viewport.item_style(index) role="row" aria-rowindex=index + 1>
                                                 <div class="cell col-name" role="gridcell"><span class="skeleton icon-skeleton"></span><span class="skeleton text-skeleton"></span></div>
                                                 <div class="cell col-path" role="gridcell"><span class="skeleton path-skeleton"></span></div>
+                                                <div class="cell col-type" role="gridcell"><span class="skeleton type-skeleton"></span></div>
                                                 <div class="cell col-size" role="gridcell"><span class="skeleton size-skeleton"></span></div>
                                                 <div class="cell col-date" role="gridcell"><span class="skeleton date-skeleton"></span></div>
                                             </div>
@@ -393,6 +395,17 @@ where
             {icon}<span>{label}</span><kbd>{shortcut}</kbd>
         </button>
     }
+}
+
+fn file_type(name: &str, is_dir: bool) -> String {
+    if is_dir {
+        return "Folder".into();
+    }
+
+    name.rsplit_once('.')
+        .filter(|(stem, extension)| !stem.is_empty() && !extension.is_empty())
+        .map(|(_, extension)| extension.to_uppercase())
+        .unwrap_or_else(|| "File".into())
 }
 
 fn selection_modifiers(event: &MouseEvent) -> SelectionModifiers {

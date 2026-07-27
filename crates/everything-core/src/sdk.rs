@@ -11,6 +11,7 @@ use std::ptr;
 const PROPERTY_ID_NAME: u32 = 0;
 const PROPERTY_ID_PATH: u32 = 1;
 const PROPERTY_ID_SIZE: u32 = 2;
+const PROPERTY_ID_EXTENSION: u32 = 3;
 const PROPERTY_ID_DATE_MODIFIED: u32 = 5;
 const DEFAULT_INSTANCE_NAME: &str = "";
 const UNKNOWN_UINT64: u64 = u64::MAX;
@@ -530,6 +531,7 @@ fn map_sort(column: SortColumn, direction: SortDirection) -> (u32, i32) {
     let property_id = match column {
         SortColumn::Name => PROPERTY_ID_NAME,
         SortColumn::Path => PROPERTY_ID_PATH,
+        SortColumn::Extension => PROPERTY_ID_EXTENSION,
         SortColumn::Size => PROPERTY_ID_SIZE,
         SortColumn::Modified => PROPERTY_ID_DATE_MODIFIED,
     };
@@ -566,6 +568,14 @@ mod tests {
         assert_eq!(
             map_sort(SortColumn::Name, SortDirection::Ascending),
             (PROPERTY_ID_NAME, 1)
+        );
+    }
+
+    #[test]
+    fn maps_extension_sort() {
+        assert_eq!(
+            map_sort(SortColumn::Extension, SortDirection::Ascending),
+            (super::PROPERTY_ID_EXTENSION, 1)
         );
     }
 
