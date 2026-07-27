@@ -3,7 +3,7 @@ $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Pa
 $sdkVersion = "3.0.0.9"
 $expectedArchiveSha256 = "124685d35a5f49f3c1e9898853e166215748c893782c6a251f5dde58dacad4fa"
 $expectedDllSha256 = "be25b01c73bbf359b50ddf30255133225f93b4bc40a8d208173319373bcdaa5c"
-$temp = Join-Path $env:TEMP "everything-modern-sdk3"
+$temp = Join-Path $env:TEMP "everything-next-sdk3"
 $archive = Join-Path $temp "Everything-SDK-$sdkVersion.zip"
 $destination = Join-Path $projectRoot "src-tauri\Everything3_x64.dll"
 

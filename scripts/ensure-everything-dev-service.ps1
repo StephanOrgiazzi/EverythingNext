@@ -1,5 +1,5 @@
 param(
-  [string]$InstanceName = "EverythingModernDev",
+  [string]$InstanceName = "EverythingNextDev",
   [string]$SourceExecutable,
   [switch]$Elevated
 )
@@ -49,7 +49,7 @@ if ($source.PSIsContainer) {
   throw "Everything runtime is not a file: $SourceExecutable"
 }
 
-$destinationDirectory = Join-Path $env:ProgramFiles "Everything Modern Dev\$InstanceName"
+$destinationDirectory = Join-Path $env:ProgramFiles "Everything Next Dev\$InstanceName"
 $destination = Join-Path $destinationDirectory "Everything.exe"
 
 if (-not $Elevated) {

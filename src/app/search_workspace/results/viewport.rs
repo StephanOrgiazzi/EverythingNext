@@ -9,7 +9,7 @@ use web_sys::HtmlDivElement;
 use crate::app::settings::storage;
 use crate::diagnostics;
 
-const VIEW_MODE_STORAGE_KEY: &str = "everything-modern-view-mode";
+const VIEW_MODE_STORAGE_KEY: &str = "everything-next-view-mode";
 
 #[derive(Clone, Copy)]
 pub(crate) struct ResultViewport {

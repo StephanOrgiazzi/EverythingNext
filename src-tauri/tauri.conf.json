@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Everything Modern",
-  "mainBinaryName": "EverythingModern",
+  "productName": "Everything Next",
+  "mainBinaryName": "EverythingNext",
   "version": "0.1.0",
-  "identifier": "com.everythingmodern.app",
+  "identifier": "com.everythingnext.app",
   "build": {
     "beforeDevCommand": "trunk serve",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Everything Modern",
+        "title": "Everything Next",
         "width": 1240,
         "height": 780,
         "minWidth": 820,
@@ -43,8 +43,8 @@
       "engine/THIRD-PARTY-LICENSES.txt",
       "icons/icon.ico"
     ],
-    "shortDescription": "Everything search in a modern Windows 11 interface",
-    "longDescription": "A fast, standalone Windows search client powered by a private Everything 1.5 engine and SDK3.",
+    "shortDescription": "Next-generation Everything search for Windows 11",
+    "longDescription": "Everything Next is a fast, standalone Windows search client powered by Everything 1.5 and SDK3.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

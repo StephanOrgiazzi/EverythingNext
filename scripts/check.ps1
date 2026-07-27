@@ -40,6 +40,24 @@ if (-not (Test-Path "src-tauri\engine\THIRD-PARTY-LICENSES.txt")) {
   throw "The bundled Everything runtime license notice is missing."
 }
 
+$legacyIdentifiers = @(
+  ("Everything" + " Modern"),
+  ("Everything" + "Modern"),
+  ("everything" + "-modern"),
+  ("everything" + "_modern"),
+  ("everything" + "Modern"),
+  ("everything" + "modern")
+)
+foreach ($legacyIdentifier in $legacyIdentifiers) {
+  $matches = & git grep -n -F -- $legacyIdentifier 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    throw "Legacy product identifier '$legacyIdentifier' remains:`n$($matches -join "`n")"
+  }
+  if ($LASTEXITCODE -ne 1) {
+    throw "git grep failed while checking '$legacyIdentifier'."
+  }
+}
+
 if (-not (Test-Path "Cargo.lock")) {
   cargo generate-lockfile
 }
@@ -53,8 +71,8 @@ cargo test -p everything-core --locked
 cargo test -p windows-shell --locked
 cargo check -p everything-core --locked
 cargo check -p windows-shell --locked
-cargo check -p everything-modern-ui --target wasm32-unknown-unknown --locked
-cargo check -p everything-modern --locked
+cargo check -p everything-next-ui --target wasm32-unknown-unknown --locked
+cargo check -p everything-next --locked
 trunk build --release
 
 Write-Host "Validation completed." -ForegroundColor Green

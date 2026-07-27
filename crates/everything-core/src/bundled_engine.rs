@@ -1,23 +1,118 @@
 use crate::EngineError;
 use std::collections::HashSet;
 use std::env;
+use std::ffi::c_void;
 use std::fs;
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS: i32 = 9;
+const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x0000_2000;
 const DEFAULT_INSTANCE_NAME: &str = "";
-const DEFAULT_SERVICE_INSTANCE_NAME: &str = "EverythingModern";
+const DEFAULT_SERVICE_INSTANCE_NAME: &str = "EverythingNext";
 
 #[link(name = "kernel32")]
 extern "system" {
     fn WaitNamedPipeW(name: *const u16, timeout: u32) -> i32;
+    fn CreateJobObjectW(attributes: *const c_void, name: *const u16) -> *mut c_void;
+    fn SetInformationJobObject(
+        job: *mut c_void,
+        information_class: i32,
+        information: *const c_void,
+        information_length: u32,
+    ) -> i32;
+    fn AssignProcessToJobObject(job: *mut c_void, process: *mut c_void) -> i32;
+}
+
+#[repr(C)]
+struct JobObjectBasicLimitInformation {
+    per_process_user_time_limit: i64,
+    per_job_user_time_limit: i64,
+    limit_flags: u32,
+    minimum_working_set_size: usize,
+    maximum_working_set_size: usize,
+    active_process_limit: u32,
+    affinity: usize,
+    priority_class: u32,
+    scheduling_class: u32,
+}
+
+#[repr(C)]
+struct IoCounters {
+    read_operation_count: u64,
+    write_operation_count: u64,
+    other_operation_count: u64,
+    read_transfer_count: u64,
+    write_transfer_count: u64,
+    other_transfer_count: u64,
+}
+
+#[repr(C)]
+struct JobObjectExtendedLimitInformation {
+    basic_limit_information: JobObjectBasicLimitInformation,
+    io_info: IoCounters,
+    process_memory_limit: usize,
+    job_memory_limit: usize,
+    peak_process_memory_used: usize,
+    peak_job_memory_used: usize,
+}
+
+struct JobObject {
+    handle: OwnedHandle,
+}
+
+impl JobObject {
+    fn kill_on_close() -> Result<Self, EngineError> {
+        let raw_handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        if raw_handle.is_null() {
+            return Err(EngineError::EngineStart(format!(
+                "unable to create the engine job object: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+
+        let job = Self {
+            handle: unsafe { OwnedHandle::from_raw_handle(raw_handle) },
+        };
+        let mut limits: JobObjectExtendedLimitInformation = unsafe { std::mem::zeroed() };
+        limits.basic_limit_information.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        let configured = unsafe {
+            SetInformationJobObject(
+                job.handle.as_raw_handle(),
+                JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
+                std::ptr::from_ref(&limits).cast(),
+                std::mem::size_of::<JobObjectExtendedLimitInformation>() as u32,
+            )
+        };
+        if configured == 0 {
+            return Err(EngineError::EngineStart(format!(
+                "unable to configure the engine job object: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        Ok(job)
+    }
+
+    fn assign(&self, child: &Child) -> Result<(), EngineError> {
+        let assigned =
+            unsafe { AssignProcessToJobObject(self.handle.as_raw_handle(), child.as_raw_handle()) };
+        if assigned == 0 {
+            return Err(EngineError::EngineStart(format!(
+                "unable to attach the bundled engine to its job object: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        Ok(())
+    }
 }
 
 pub(crate) struct ManagedEngine {
     executable: PathBuf,
     instance_name: String,
+    _job: Option<JobObject>,
     child: Option<Child>,
 }
 
@@ -58,15 +153,22 @@ impl ManagedEngine {
             EngineError::EngineSetup(format!("unable to update {}: {error}", config.display()))
         })?;
 
-        let child = spawn_engine_without_waiting_for_index(
+        let job = JobObject::kill_on_close()?;
+        let mut child = spawn_engine_without_waiting_for_index(
             &executable,
             &instance_name,
             &config,
             &database,
         )?;
+        if let Err(error) = job.assign(&child) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
         Ok(Self {
             executable,
             instance_name,
+            _job: Some(job),
             child: Some(child),
         })
     }
@@ -116,6 +218,7 @@ impl ManagedEngine {
         Self {
             executable,
             instance_name,
+            _job: None,
             child: None,
         }
     }
@@ -250,7 +353,7 @@ fn merge_config(existing: &str, service_pipe: &str) -> String {
 
 fn engine_data_directory(instance_name: &str) -> Option<PathBuf> {
     env::var_os("LOCALAPPDATA").map(PathBuf::from).map(|path| {
-        let base = path.join("EverythingModern").join("Engine");
+        let base = path.join("EverythingNext").join("Engine");
         if instance_name == DEFAULT_INSTANCE_NAME {
             base
         } else {
@@ -393,14 +496,14 @@ auto_include_fixed_fat_volumes=0
     #[test]
     fn overridden_instances_have_distinct_storage_keys() {
         assert_ne!(
-            instance_storage_key("EverythingModernDev"),
-            instance_storage_key("EverythingModernTest")
+            instance_storage_key("EverythingNextDev"),
+            instance_storage_key("EverythingNextTest")
         );
     }
 
     #[test]
     fn instance_names_are_safe_for_process_arguments_and_storage() {
-        assert!(valid_instance_name("EverythingModern.Dev-1"));
+        assert!(valid_instance_name("EverythingNext.Dev-1"));
         assert!(!valid_instance_name(""));
         assert!(!valid_instance_name("bad instance"));
         assert!(!valid_instance_name("bad\" -quit"));
@@ -411,7 +514,7 @@ auto_include_fixed_fat_volumes=0
         assert_eq!(ipc_pipe_name(""), r"\\.\PIPE\Everything IPC");
         assert_eq!(
             service_pipe_name(""),
-            r"\\.\PIPE\Everything Service (EverythingModern)"
+            r"\\.\PIPE\Everything Service (EverythingNext)"
         );
     }
 
@@ -429,14 +532,16 @@ auto_include_fixed_fat_volumes=0
             .collect::<Vec<_>>();
 
         assert!(!arguments.iter().any(|argument| argument == "-instance"));
-        assert!(arguments.iter().any(|argument| argument == "-first-instance"));
+        assert!(arguments
+            .iter()
+            .any(|argument| argument == "-first-instance"));
     }
 
     #[test]
     fn runtime_command_does_not_reapply_the_service_pipe_setting() {
         let command = engine_command(
             Path::new("Everything.exe"),
-            "EverythingModern",
+            "EverythingNext",
             Path::new("Everything.ini"),
             Path::new("Everything.db"),
         );
@@ -450,6 +555,6 @@ auto_include_fixed_fat_volumes=0
             .any(|argument| argument == "-service-pipe-name"));
         assert!(arguments
             .windows(2)
-            .any(|pair| pair == ["-instance", "EverythingModern"]));
+            .any(|pair| pair == ["-instance", "EverythingNext"]));
     }
 }

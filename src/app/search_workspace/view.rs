@@ -145,7 +145,7 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
                         <path d="M143.5 139.5 196 192" fill="none" stroke="#1992CA" stroke-width="23" stroke-linecap="round"></path>
                     </svg>
                 </div>
-                <div class="app-title text-xs font-semibold tracking-[.01em]" data-tauri-drag-region>"Everything Modern"</div>
+                <div class="app-title text-xs font-semibold tracking-[.01em]" data-tauri-drag-region>"Everything Next"</div>
                 <div class="titlebar-spacer h-full flex-1" data-tauri-drag-region></div>
                 <div class="window-controls flex self-stretch" on:dblclick=move |event| event.stop_propagation()>
                     <button class="window-control grid h-full w-[46px] place-items-center rounded-none bg-transparent hover:bg-[var(--hover)] active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] [&>.native-icon]:size-3 [&>.native-icon]:pointer-events-none [&>.native-icon]:text-[10px]" title="Minimize" aria-label="Minimize" on:click=move |event| { event.stop_propagation(); window::minimize(); }>{icons::minimize()}</button>

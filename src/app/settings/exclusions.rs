@@ -5,7 +5,7 @@ use super::storage;
 use crate::backend;
 use crate::diagnostics;
 
-const STORAGE_KEY: &str = "everything-modern.excluded-folders";
+const STORAGE_KEY: &str = "everything-next.excluded-folders";
 
 #[derive(Clone, Copy)]
 pub(in crate::app) struct ExcludedFoldersState {

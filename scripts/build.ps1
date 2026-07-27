@@ -1,7 +1,3 @@
-param(
-  [switch]$SkipChecks
-)
-
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $projectRoot
@@ -16,9 +12,6 @@ if (-not (Test-Path "Cargo.lock")) {
   cargo generate-lockfile
 }
 
-if (-not $SkipChecks) {
-  & "$PSScriptRoot\check.ps1" -FixFormatting
-}
-
+& "$PSScriptRoot\check.ps1" -FixFormatting
 cargo tauri build
 Write-Host "Bundles are available in target\release\bundle." -ForegroundColor Green
