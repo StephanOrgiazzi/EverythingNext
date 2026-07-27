@@ -8,6 +8,7 @@ use web_sys::{Element, HtmlDivElement, PointerEvent};
 struct ColumnWidths {
     name: f64,
     path: f64,
+    file_type: f64,
     size: f64,
     date: f64,
 }
@@ -15,7 +16,8 @@ struct ColumnWidths {
 #[derive(Clone, Copy)]
 enum ColumnBoundary {
     NamePath,
-    PathSize,
+    PathType,
+    TypeSize,
     SizeDate,
 }
 
@@ -57,8 +59,8 @@ impl ResultColumns {
         };
         if let Some(widths) = self.widths.get() {
             style.push_str(&format!(
-                ";--col-name:{:.4}%;--col-path:{:.4}%;--col-size:{:.4}%;--col-date:{:.4}%",
-                widths.name, widths.path, widths.size, widths.date
+                ";--col-name:{:.4}%;--col-path:{:.4}%;--col-type:{:.4}%;--col-size:{:.4}%;--col-date:{:.4}%",
+                widths.name, widths.path, widths.file_type, widths.size, widths.date
             ));
         }
         style
@@ -74,9 +76,10 @@ impl ResultColumns {
         event.prevent_default();
 
         let (minimum_left, minimum_right) = match active.boundary {
-            ColumnBoundary::NamePath => (180.0, 180.0),
-            ColumnBoundary::PathSize => (180.0, 76.0),
-            ColumnBoundary::SizeDate => (76.0, 130.0),
+            ColumnBoundary::NamePath => (160.0, 120.0),
+            ColumnBoundary::PathType => (120.0, 64.0),
+            ColumnBoundary::TypeSize => (64.0, 68.0),
+            ColumnBoundary::SizeDate => (68.0, 110.0),
         };
         let pair_width = active.start_left + active.start_right;
         if pair_width <= minimum_left + minimum_right {
@@ -98,8 +101,12 @@ impl ResultColumns {
                     current.name = left_percent;
                     current.path = right_percent;
                 }
-                ColumnBoundary::PathSize => {
+                ColumnBoundary::PathType => {
                     current.path = left_percent;
+                    current.file_type = right_percent;
+                }
+                ColumnBoundary::TypeSize => {
+                    current.file_type = left_percent;
                     current.size = right_percent;
                 }
                 ColumnBoundary::SizeDate => {
@@ -132,7 +139,8 @@ impl ResultColumns {
         let Some(measured) = measure_column_widths(&header) else {
             return;
         };
-        let total_width = measured.name + measured.path + measured.size + measured.date;
+        let total_width =
+            measured.name + measured.path + measured.file_type + measured.size + measured.date;
         if total_width <= 0.0 {
             return;
         }
@@ -140,13 +148,15 @@ impl ResultColumns {
         self.widths.set(Some(ColumnWidths {
             name: measured.name / total_width * 100.0,
             path: measured.path / total_width * 100.0,
+            file_type: measured.file_type / total_width * 100.0,
             size: measured.size / total_width * 100.0,
             date: measured.date / total_width * 100.0,
         }));
 
         let (start_left, start_right) = match boundary {
             ColumnBoundary::NamePath => (measured.name, measured.path),
-            ColumnBoundary::PathSize => (measured.path, measured.size),
+            ColumnBoundary::PathType => (measured.path, measured.file_type),
+            ColumnBoundary::TypeSize => (measured.file_type, measured.size),
             ColumnBoundary::SizeDate => (measured.size, measured.date),
         };
         self.resize.set(Some(ColumnResize {
@@ -179,7 +189,11 @@ pub(crate) fn ColumnHeaders(columns: ResultColumns, sort: RwSignal<SortSpec>) ->
             </div>
             <div class="column-heading col-path relative min-w-0 border-r border-[var(--border-soft)]">
                 <SortHeader label="Path" column=SortColumn::Path sort />
-                <ColumnResizer boundary=ColumnBoundary::PathSize columns />
+                <ColumnResizer boundary=ColumnBoundary::PathType columns />
+            </div>
+            <div class="column-heading col-type relative min-w-0 border-r border-[var(--border-soft)]">
+                <SortHeader label="Type" column=SortColumn::Extension sort />
+                <ColumnResizer boundary=ColumnBoundary::TypeSize columns />
             </div>
             <div class="column-heading col-size relative min-w-0 border-r border-[var(--border-soft)]">
                 <SortHeader label="Size" column=SortColumn::Size sort />
@@ -230,6 +244,7 @@ fn measure_column_widths(header: &HtmlDivElement) -> Option<ColumnWidths> {
     Some(ColumnWidths {
         name: measure_column(header, ".column-heading.col-name")?,
         path: measure_column(header, ".column-heading.col-path")?,
+        file_type: measure_column(header, ".column-heading.col-type")?,
         size: measure_column(header, ".column-heading.col-size")?,
         date: measure_column(header, ".column-heading.col-date")?,
     })

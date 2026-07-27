@@ -9,7 +9,7 @@ Client Windows moderne pour **Everything 1.5**, construit en Rust avec **Tauri 2
 - instance privée nommée `EverythingModern`, indépendante d’une éventuelle instance Everything classique ;
 - invalidation logique des anciennes générations côté frontend **et backend Rust** ;
 - pagination SDK3 par viewport, par lots de 256 résultats, et cache glissant de huit pages ;
-- liste virtualisée, tri nom/chemin/taille/date et icônes Shell progressives avec cache hybride par extension ou chemin sensible ;
+- liste virtualisée, tri nom/chemin/type/taille/date et icônes Shell progressives avec cache hybride par extension ou chemin sensible ;
 - sélection logique par plages : simple, Ctrl, Maj, grandes plages et `Ctrl+A` sans charger tous les résultats ;
 - ouvrir, révéler, copier via le presse-papiers natif, renommer et déplacer vers la Corbeille ;
 - dialogues applicatifs de renommage et de confirmation ;

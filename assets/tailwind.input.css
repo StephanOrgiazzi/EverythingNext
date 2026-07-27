@@ -150,10 +150,11 @@
   .column-header,
   .result-row {
     grid-template-columns:
-      var(--col-name, minmax(280px, 1.15fr))
-      var(--col-path, minmax(260px, 1fr))
-      var(--col-size, 110px)
-      var(--col-date, 156px);
+      var(--col-name, minmax(210px, 1.15fr))
+      var(--col-path, minmax(150px, 1fr))
+      var(--col-type, 70px)
+      var(--col-size, 80px)
+      var(--col-date, 120px);
   }
 
   .column-resizer {
@@ -203,7 +204,7 @@
 
   .virtual-canvas {
     position: relative;
-    min-width: 760px;
+    min-width: 630px;
   }
 
   .result-row {
@@ -242,6 +243,7 @@
   }
 
   .cell.col-path,
+  .cell.col-type,
   .cell.col-size,
   .cell.col-date {
     color: var(--muted);
@@ -316,6 +318,10 @@
     width: 72%;
   }
 
+  .type-skeleton {
+    width: 52px;
+  }
+
   .size-skeleton {
     width: 48px;
     margin-left: auto;
@@ -338,10 +344,11 @@
     .column-header,
     .result-row {
       grid-template-columns:
-        var(--col-name, minmax(260px, 1.15fr))
-        var(--col-path, minmax(220px, 1fr))
-        var(--col-size, 100px)
-        var(--col-date, 140px);
+        var(--col-name, minmax(200px, 1.15fr))
+        var(--col-path, minmax(140px, 1fr))
+        var(--col-type, 70px)
+        var(--col-size, 80px)
+        var(--col-date, 120px);
     }
   }
 }
