@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-const DEFAULT_INSTANCE_NAME: &str = "EverythingModern";
+const DEFAULT_INSTANCE_NAME: &str = "";
+const DEFAULT_SERVICE_INSTANCE_NAME: &str = "EverythingModern";
 
 #[link(name = "kernel32")]
 extern "system" {
@@ -24,7 +25,7 @@ impl ManagedEngine {
     pub(crate) fn start() -> Result<Self, EngineError> {
         let instance_name =
             env::var("EVERYTHING_INSTANCE").unwrap_or_else(|_| DEFAULT_INSTANCE_NAME.to_string());
-        if !valid_instance_name(&instance_name) {
+        if !instance_name.is_empty() && !valid_instance_name(&instance_name) {
             return Err(EngineError::InvalidInstance(
                 "use 1-64 ASCII letters, digits, dots, underscores, or hyphens".to_string(),
             ));
@@ -35,6 +36,9 @@ impl ManagedEngine {
         let executable = locate_engine().ok_or(EngineError::EngineNotFound)?;
         let ipc_pipe = ipc_pipe_name(&instance_name);
         if named_pipe_available(&ipc_pipe) {
+            if instance_name.is_empty() {
+                return Err(EngineError::DefaultInstanceInUse);
+            }
             return Ok(Self::inactive(executable, instance_name));
         }
 
@@ -139,9 +143,10 @@ fn engine_command(
     database: &Path,
 ) -> Command {
     let mut command = Command::new(executable);
+    if !instance_name.is_empty() {
+        command.arg("-instance").arg(instance_name);
+    }
     command
-        .arg("-instance")
-        .arg(instance_name)
         .arg("-first-instance")
         .arg("-startup")
         .arg("-config")
@@ -175,6 +180,7 @@ fn merge_config(existing: &str, service_pipe: &str) -> String {
         ("minimize_to_tray", "0".to_string()),
         ("check_for_updates_on_startup", "0".to_string()),
         ("beta_updates", "0".to_string()),
+        ("alpha_instance", "0".to_string()),
         ("allow_multiple_instances", "0".to_string()),
         ("ipc_enabled", "1".to_string()),
         ("service_pipe_name", service_pipe.to_string()),
@@ -313,7 +319,12 @@ fn ipc_pipe_name(instance_name: &str) -> String {
 }
 
 fn service_pipe_name(instance_name: &str) -> String {
-    format!(r"\\.\PIPE\Everything Service ({instance_name})")
+    let service_instance = if instance_name.is_empty() {
+        DEFAULT_SERVICE_INSTANCE_NAME
+    } else {
+        instance_name
+    };
+    format!(r"\\.\PIPE\Everything Service ({service_instance})")
 }
 
 fn named_pipe_available(name: &str) -> bool {
@@ -359,15 +370,18 @@ mod tests {
     fn enables_indexing_for_all_fixed_volume_types() {
         let existing = "\
 [Everything]
+alpha_instance=1
 auto_include_fixed_volumes=0
 auto_include_fixed_refs_volumes=0
 auto_include_fixed_fat_volumes=0
 ";
         let merged = merge_config(existing, "test-pipe");
 
+        assert!(merged.contains("alpha_instance=0\n"));
         assert!(merged.contains("auto_include_fixed_volumes=1\n"));
         assert!(merged.contains("auto_include_fixed_refs_volumes=1\n"));
         assert!(merged.contains("auto_include_fixed_fat_volumes=1\n"));
+        assert_eq!(merged.matches("alpha_instance=").count(), 1);
         assert_eq!(merged.matches("auto_include_fixed_volumes=").count(), 1);
         assert_eq!(
             merged.matches("auto_include_fixed_refs_volumes=").count(),
@@ -390,6 +404,32 @@ auto_include_fixed_fat_volumes=0
         assert!(!valid_instance_name(""));
         assert!(!valid_instance_name("bad instance"));
         assert!(!valid_instance_name("bad\" -quit"));
+    }
+
+    #[test]
+    fn default_instance_uses_the_standard_ipc_pipe_and_private_service_pipe() {
+        assert_eq!(ipc_pipe_name(""), r"\\.\PIPE\Everything IPC");
+        assert_eq!(
+            service_pipe_name(""),
+            r"\\.\PIPE\Everything Service (EverythingModern)"
+        );
+    }
+
+    #[test]
+    fn default_runtime_command_omits_the_instance_argument() {
+        let command = engine_command(
+            Path::new("Everything.exe"),
+            "",
+            Path::new("Everything.ini"),
+            Path::new("Everything.db"),
+        );
+        let arguments = command
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(!arguments.iter().any(|argument| argument == "-instance"));
+        assert!(arguments.iter().any(|argument| argument == "-first-instance"));
     }
 
     #[test]
