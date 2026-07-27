@@ -35,7 +35,6 @@ struct ColumnResize {
 pub(crate) struct ResultColumns {
     widths: RwSignal<Option<ColumnWidths>>,
     resize: RwSignal<Option<ColumnResize>>,
-    scroll_left: RwSignal<i32>,
     header_ref: NodeRef<leptos::html::Div>,
 }
 
@@ -44,7 +43,6 @@ impl ResultColumns {
         Self {
             widths: RwSignal::new(None),
             resize: RwSignal::new(None),
-            scroll_left: RwSignal::new(0),
             header_ref: NodeRef::new(),
         }
     }
@@ -59,10 +57,6 @@ impl ResultColumns {
         } else {
             String::new()
         };
-        style.push_str(&format!(
-            ";--results-scroll-left:{}px",
-            self.scroll_left.get()
-        ));
         if let Some(widths) = self.widths.get() {
             style.push_str(&format!(
                 ";--col-name:{:.4}%;--col-path:{:.4}%;--col-type:{:.4}%;--col-size:{:.4}%;--col-date:{:.4}%",
@@ -70,16 +64,6 @@ impl ResultColumns {
             ));
         }
         style
-    }
-
-    pub fn update_scroll_offset(self, event: &web_sys::Event) {
-        let Some(element) = event
-            .target()
-            .and_then(|target| target.dyn_into::<HtmlDivElement>().ok())
-        else {
-            return;
-        };
-        self.scroll_left.set(element.scroll_left());
     }
 
     pub fn update_resize(self, event: PointerEvent) {
@@ -92,10 +76,10 @@ impl ResultColumns {
         event.prevent_default();
 
         let (minimum_left, minimum_right) = match active.boundary {
-            ColumnBoundary::NamePath => (180.0, 180.0),
-            ColumnBoundary::PathType => (180.0, 80.0),
-            ColumnBoundary::TypeSize => (80.0, 76.0),
-            ColumnBoundary::SizeDate => (76.0, 130.0),
+            ColumnBoundary::NamePath => (160.0, 120.0),
+            ColumnBoundary::PathType => (120.0, 64.0),
+            ColumnBoundary::TypeSize => (64.0, 68.0),
+            ColumnBoundary::SizeDate => (68.0, 110.0),
         };
         let pair_width = active.start_left + active.start_right;
         if pair_width <= minimum_left + minimum_right {
