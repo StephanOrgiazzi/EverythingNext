@@ -13,7 +13,9 @@ use tauri::{
 const AUTOSTART_ARG: &str = "--autostart";
 const SEARCH_ARG: &str = "-s";
 #[cfg(all(windows, not(debug_assertions)))]
-const AUTOSTART_VALUE_NAME: &str = "Everything Modern";
+const AUTOSTART_VALUE_NAME: &str = "Everything Next";
+#[cfg(all(windows, not(debug_assertions)))]
+const LEGACY_AUTOSTART_VALUE_NAME: &str = "Everything Modern";
 const TRAY_OPEN_ID: &str = "open";
 const TRAY_QUIT_ID: &str = "quit";
 
@@ -101,7 +103,7 @@ pub(crate) fn install_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()>
     let mut tray = TrayIconBuilder::new()
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("Everything Modern")
+        .tooltip("Everything Next")
         .on_menu_event(|app, event| match event.id().as_ref() {
             TRAY_OPEN_ID => show_main_window(app),
             TRAY_QUIT_ID => app.exit(0),
@@ -132,7 +134,7 @@ pub(crate) fn install_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()>
 
 pub(crate) fn ensure_autostart_registered() {
     if let Err(error) = register_windows_autostart() {
-        eprintln!("Everything Modern autostart: {error}");
+        eprintln!("Everything Next autostart: {error}");
     }
 }
 
@@ -148,6 +150,18 @@ fn register_windows_autostart() -> Result<(), String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("Unable to locate the executable: {error}"))?;
     let startup_command = format!("\"{}\" {AUTOSTART_ARG}", executable.display());
+
+    let _ = Command::new("reg.exe")
+        .args([
+            "delete",
+            RUN_KEY,
+            "/v",
+            LEGACY_AUTOSTART_VALUE_NAME,
+            "/f",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status();
+
     let status = Command::new("reg.exe")
         .args([
             "add",
@@ -195,7 +209,7 @@ mod tests {
 
     #[test]
     fn parses_the_everything_search_argument() {
-        let arguments = ["EverythingModern.exe", "-s", "ext:pdf annual report"];
+        let arguments = ["EverythingNext.exe", "-s", "ext:pdf annual report"];
 
         assert_eq!(
             search_query_from_args(arguments),
@@ -205,14 +219,14 @@ mod tests {
 
     #[test]
     fn search_argument_matching_is_case_insensitive() {
-        let arguments = ["EverythingModern.exe", "-S", "invoice"];
+        let arguments = ["EverythingNext.exe", "-S", "invoice"];
 
         assert_eq!(search_query_from_args(arguments), Some("invoice".to_string()));
     }
 
     #[test]
     fn ignores_a_search_argument_without_a_query() {
-        let arguments = ["EverythingModern.exe", "-s"];
+        let arguments = ["EverythingNext.exe", "-s"];
 
         assert_eq!(search_query_from_args(arguments), None);
     }
