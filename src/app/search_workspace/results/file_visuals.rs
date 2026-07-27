@@ -1,10 +1,14 @@
 use crate::{backend, diagnostics};
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use super::visual_queue::request_thumbnail;
+
+const ICON_LOAD_ATTEMPTS: usize = 2;
+const ICON_RETRY_DELAY_MS: u32 = 80;
 
 type IconSource = ArcRwSignal<Option<Option<String>>>;
 
@@ -29,42 +33,107 @@ fn icon_cache_key(path: &str, is_dir: bool) -> String {
     }
 }
 
-fn icon_source(path: &str, is_dir: bool) -> (IconSource, bool) {
-    let key = icon_cache_key(path, is_dir);
+fn icon_source(key: &str) -> (IconSource, bool) {
     ICON_SOURCES.with(|sources| {
         let mut sources = sources.borrow_mut();
-        if let Some(source) = sources.get(&key) {
+        if let Some(source) = sources.get(key) {
             return (source.clone(), false);
         }
 
         let source = ArcRwSignal::new(None);
-        sources.insert(key, source.clone());
+        sources.insert(key.to_string(), source.clone());
         (source, true)
     })
 }
 
+fn forget_icon_source(key: &str) {
+    ICON_SOURCES.with(|sources| {
+        sources.borrow_mut().remove(key);
+    });
+}
+
+fn fallback_icon(is_dir: bool) -> AnyView {
+    if is_dir {
+        view! {
+            <svg class="size-full" viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                    fill="#F5B72E"
+                    d="M1.5 4.25A1.25 1.25 0 0 1 2.75 3h4.1c.4 0 .78.19 1.02.51l.87 1.16h8.51A1.25 1.25 0 0 1 18.5 5.92v8.83A1.25 1.25 0 0 1 17.25 16H2.75A1.25 1.25 0 0 1 1.5 14.75V4.25Z"
+                />
+                <path
+                    fill="#FFD45A"
+                    d="M1.5 6.25h17v8.5A1.25 1.25 0 0 1 17.25 16H2.75A1.25 1.25 0 0 1 1.5 14.75v-8.5Z"
+                />
+            </svg>
+        }
+        .into_any()
+    } else {
+        view! {
+            <svg
+                class="size-[88%] text-[var(--muted)]"
+                viewBox="0 0 20 20"
+                fill="none"
+                aria-hidden="true"
+            >
+                <path
+                    d="M4.5 2.5h7l4 4v11h-11v-15Z"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linejoin="round"
+                />
+                <path
+                    d="M11.5 2.5v4h4"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linejoin="round"
+                />
+            </svg>
+        }
+        .into_any()
+    }
+}
+
 #[component]
 pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
-    let (source, should_load) = icon_source(&path, is_dir);
+    let cache_key = icon_cache_key(&path, is_dir);
+    let (source, should_load) = icon_source(&cache_key);
     if should_load {
         let source_for_load = source.clone();
+        let cache_key = cache_key.clone();
         let path = path.clone();
         spawn_local(async move {
-            match backend::visual(&path, false).await {
-                Ok(icon) => source_for_load.set(Some(icon)),
-                Err(error) => {
-                    diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
-                    source_for_load.set(Some(None));
+            let mut last_error = None;
+            for attempt in 0..ICON_LOAD_ATTEMPTS {
+                match backend::visual(&path, false).await {
+                    Ok(Some(icon)) => {
+                        source_for_load.set(Some(Some(icon)));
+                        return;
+                    }
+                    Ok(None) => {}
+                    Err(error) => last_error = Some(error),
+                }
+
+                if attempt + 1 < ICON_LOAD_ATTEMPTS {
+                    TimeoutFuture::new(ICON_RETRY_DELAY_MS).await;
                 }
             }
+
+            if let Some(error) = last_error {
+                diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
+            }
+            source_for_load.set(Some(None));
+            forget_icon_source(&cache_key);
         });
     }
 
     view! {
         <span class="file-icon grid size-5 place-items-center [&>img]:size-5 [&>img]:object-contain">
-            {move || source.get().flatten().map(|source| view! {
-                <img src=source alt="" loading="lazy" decoding="async" />
-            })}
+            {move || match source.get().flatten() {
+                Some(source) => view! {
+                    <img src=source alt="" loading="eager" decoding="async" />
+                }.into_any(),
+                None => fallback_icon(is_dir),
+            }}
         </span>
     }
 }
