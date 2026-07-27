@@ -6,9 +6,11 @@ mod trash;
 use desktop::{take_pending_search_query, LaunchState};
 use search::{begin_search_generation, engine_status, search_everything, SearchState};
 use shell_commands::{copy_text, get_file_visual, open_path, rename_path, reveal_path, ShellState};
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
 use trash::{cancel_trash_snapshot, execute_trash_snapshot, prepare_trash_selection, TrashState};
+
+const OPEN_SEARCH_QUERY_EVENT: &str = "open-search-query";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,8 +21,13 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(query) = desktop::search_query_from_args(&args) {
-                if let Err(error) = app.state::<LaunchState>().set_search_query(query) {
-                    eprintln!("Unable to forward the launch search query: {error}");
+                match app.state::<LaunchState>().set_search_query(query) {
+                    Ok(()) => {
+                        if let Err(error) = app.emit(OPEN_SEARCH_QUERY_EVENT, ()) {
+                            eprintln!("Unable to notify the UI about the launch query: {error}");
+                        }
+                    }
+                    Err(error) => eprintln!("Unable to forward the launch search query: {error}"),
                 }
             }
             if !desktop::string_args_include_autostart(&args) {
