@@ -103,10 +103,6 @@ L’installateur NSIS est produit dans `target\release\bundle\nsis`.
 | `Ctrl+A` | Sélectionner tous les résultats |
 | `Échap` | Fermer le menu ou désélectionner |
 
-## Validation
-
-La CI Windows vérifie le formatage, les tests natifs, la compilation WASM, le frontend Trunk, l’installateur NSIS, son installation silencieuse, le service d’indexation et la désinstallation.
-
 ## Licences tierces
 
 Everything est redistribué selon sa licence MIT. Sa notice et celle de PCRE sont incluses dans `src-tauri/engine/THIRD-PARTY-LICENSES.txt` et dans l’installateur.
