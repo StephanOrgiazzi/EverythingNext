@@ -48,6 +48,20 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
         }
     });
 
+    let launch_search_ref = search_ref;
+    spawn_local(async move {
+        loop {
+            if let Ok(Some(pending_query)) = backend::take_pending_search_query().await {
+                query.set(pending_query);
+                if let Some(input) = launch_search_ref.get() {
+                    let _ = input.focus();
+                    input.select();
+                }
+            }
+            TimeoutFuture::new(150).await;
+        }
+    });
+
     viewport.monitor_dimensions();
 
     let visible_start = viewport.visible_start();
