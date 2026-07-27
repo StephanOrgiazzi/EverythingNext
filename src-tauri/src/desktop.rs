@@ -14,8 +14,6 @@ const AUTOSTART_ARG: &str = "--autostart";
 const SEARCH_ARG: &str = "-s";
 #[cfg(all(windows, not(debug_assertions)))]
 const AUTOSTART_VALUE_NAME: &str = "Everything Next";
-#[cfg(all(windows, not(debug_assertions)))]
-const LEGACY_AUTOSTART_VALUE_NAME: &str = "Everything Next";
 const TRAY_OPEN_ID: &str = "open";
 const TRAY_QUIT_ID: &str = "quit";
 
@@ -150,18 +148,6 @@ fn register_windows_autostart() -> Result<(), String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("Unable to locate the executable: {error}"))?;
     let startup_command = format!("\"{}\" {AUTOSTART_ARG}", executable.display());
-
-    let _ = Command::new("reg.exe")
-        .args([
-            "delete",
-            RUN_KEY,
-            "/v",
-            LEGACY_AUTOSTART_VALUE_NAME,
-            "/f",
-        ])
-        .creation_flags(CREATE_NO_WINDOW)
-        .status();
-
     let status = Command::new("reg.exe")
         .args([
             "add",
