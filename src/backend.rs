@@ -77,6 +77,7 @@ struct PathArgs<'a> {
 #[derive(Serialize)]
 struct VisualArgs<'a> {
     path: &'a str,
+    size: u32,
     thumbnail: bool,
 }
 
@@ -157,8 +158,16 @@ pub async fn search(request: QueryRequest) -> Result<SearchPage, String> {
     invoke(command::SEARCH, &RequestArgs { request }).await
 }
 
-pub async fn visual(path: &str, thumbnail: bool) -> Result<Option<String>, String> {
-    invoke::<Option<String>, _>(command::FILE_VISUAL, &VisualArgs { path, thumbnail }).await
+pub async fn visual(path: &str, size: u32, thumbnail: bool) -> Result<Option<String>, String> {
+    invoke::<Option<String>, _>(
+        command::FILE_VISUAL,
+        &VisualArgs {
+            path,
+            size,
+            thumbnail,
+        },
+    )
+    .await
 }
 
 pub async fn open(path: &str) -> Result<(), String> {
