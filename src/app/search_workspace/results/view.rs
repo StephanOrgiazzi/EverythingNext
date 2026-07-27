@@ -214,10 +214,11 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                                                     }
                                                 >
                                                     {match mode.visual_size() {
-                                                        Some(_) => view! {
+                                                        Some(visual_size) => view! {
                                                                 <FileVisual
                                                                     path=item.full_path.clone()
                                                                     is_dir=item.is_dir
+                                                                    visual_size
                                                                     file_size=item.size
                                                                     modified_unix=item.modified_unix
                                                                     load=true

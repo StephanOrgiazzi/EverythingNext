@@ -3,17 +3,113 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use super::visual_queue::request_thumbnail;
 
+const ICON_CACHE_MAX_ENTRIES: usize = 256;
 const ICON_LOAD_ATTEMPTS: usize = 2;
 const ICON_RETRY_DELAY_MS: u32 = 80;
+const ICON_ERROR_RETRY_MS: f64 = 1_000.0;
+const ICON_MISS_RETRY_MS: f64 = 15_000.0;
 
 type IconSource = ArcRwSignal<Option<Option<String>>>;
 
+struct IconCacheEntry {
+    source: IconSource,
+    loading: bool,
+    generation: u64,
+    retry_after_ms: Option<f64>,
+}
+
+struct IconSourceCache {
+    entries: HashMap<String, IconCacheEntry>,
+    order: VecDeque<String>,
+    next_generation: u64,
+}
+
+impl IconSourceCache {
+    fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+            next_generation: 0,
+        }
+    }
+
+    fn next_generation(&mut self) -> u64 {
+        self.next_generation = self.next_generation.wrapping_add(1);
+        self.next_generation
+    }
+
+    fn get_or_insert(&mut self, key: String) -> (IconSource, bool, u64) {
+        let now = js_sys::Date::now();
+        if self.entries.contains_key(&key) {
+            let retry_generation = self.next_generation();
+            let (source, should_load, generation) = {
+                let entry = self
+                    .entries
+                    .get_mut(&key)
+                    .expect("an existing icon cache key remains present");
+                let retry_due = entry
+                    .retry_after_ms
+                    .is_some_and(|retry_after| retry_after <= now);
+                let should_load = !entry.loading
+                    && entry.source.get_untracked() == Some(None)
+                    && retry_due;
+                if should_load {
+                    entry.loading = true;
+                    entry.generation = retry_generation;
+                    entry.retry_after_ms = None;
+                    entry.source.set(None);
+                }
+                (entry.source.clone(), should_load, entry.generation)
+            };
+            self.touch(&key);
+            return (source, should_load, generation);
+        }
+
+        let generation = self.next_generation();
+        let source = ArcRwSignal::new(None);
+        self.entries.insert(
+            key.clone(),
+            IconCacheEntry {
+                source: source.clone(),
+                loading: true,
+                generation,
+                retry_after_ms: None,
+            },
+        );
+        self.order.push_back(key);
+        while self.order.len() > ICON_CACHE_MAX_ENTRIES {
+            if let Some(oldest) = self.order.pop_front() {
+                self.entries.remove(&oldest);
+            }
+        }
+        (source, true, generation)
+    }
+
+    fn finish(&mut self, key: &str, generation: u64, retry_after_ms: Option<f64>) {
+        let Some(entry) = self.entries.get_mut(key) else {
+            return;
+        };
+        if entry.generation != generation {
+            return;
+        }
+        entry.loading = false;
+        entry.retry_after_ms = retry_after_ms;
+    }
+
+    fn touch(&mut self, key: &str) {
+        if let Some(position) = self.order.iter().position(|candidate| candidate == key) {
+            self.order.remove(position);
+        }
+        self.order.push_back(key.to_string());
+    }
+}
+
 thread_local! {
-    static ICON_SOURCES: RefCell<HashMap<String, IconSource>> = RefCell::new(HashMap::new());
+    static ICON_SOURCES: RefCell<IconSourceCache> = RefCell::new(IconSourceCache::new());
 }
 
 fn icon_cache_key(path: &str, is_dir: bool) -> String {
@@ -33,22 +129,15 @@ fn icon_cache_key(path: &str, is_dir: bool) -> String {
     }
 }
 
-fn icon_source(key: &str) -> (IconSource, bool) {
-    ICON_SOURCES.with(|sources| {
-        let mut sources = sources.borrow_mut();
-        if let Some(source) = sources.get(key) {
-            return (source.clone(), false);
-        }
-
-        let source = ArcRwSignal::new(None);
-        sources.insert(key.to_string(), source.clone());
-        (source, true)
-    })
+fn icon_source(key: String) -> (IconSource, bool, u64) {
+    ICON_SOURCES.with(|sources| sources.borrow_mut().get_or_insert(key))
 }
 
-fn forget_icon_source(key: &str) {
+fn finish_icon_load(key: &str, generation: u64, retry_after_ms: Option<f64>) {
     ICON_SOURCES.with(|sources| {
-        sources.borrow_mut().remove(key);
+        sources
+            .borrow_mut()
+            .finish(key, generation, retry_after_ms);
     });
 }
 
@@ -93,20 +182,27 @@ fn fallback_icon(is_dir: bool) -> AnyView {
     }
 }
 
+fn thumbnail_pixel_size(visual_size: u32) -> u32 {
+    let pixel_ratio = web_sys::window()
+        .map(|window| window.device_pixel_ratio())
+        .unwrap_or(1.0);
+    ((f64::from(visual_size) * pixel_ratio).ceil() as u32).clamp(32, 256)
+}
+
 #[component]
 pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
     let cache_key = icon_cache_key(&path, is_dir);
-    let (source, should_load) = icon_source(&cache_key);
+    let (source, should_load, generation) = icon_source(cache_key.clone());
     if should_load {
         let source_for_load = source.clone();
-        let cache_key = cache_key.clone();
         let path = path.clone();
         spawn_local(async move {
             let mut last_error = None;
             for attempt in 0..ICON_LOAD_ATTEMPTS {
-                match backend::visual(&path, false).await {
+                match backend::visual(&path, 64, false).await {
                     Ok(Some(icon)) => {
                         source_for_load.set(Some(Some(icon)));
+                        finish_icon_load(&cache_key, generation, None);
                         return;
                     }
                     Ok(None) => {}
@@ -118,11 +214,18 @@ pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
                 }
             }
 
-            if let Some(error) = last_error {
+            let retry_delay = if let Some(error) = last_error {
                 diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
-            }
+                ICON_ERROR_RETRY_MS
+            } else {
+                ICON_MISS_RETRY_MS
+            };
             source_for_load.set(Some(None));
-            forget_icon_source(&cache_key);
+            finish_icon_load(
+                &cache_key,
+                generation,
+                Some(js_sys::Date::now() + retry_delay),
+            );
         });
     }
 
@@ -142,22 +245,32 @@ pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
 pub(crate) fn FileVisual(
     path: String,
     is_dir: bool,
+    visual_size: u32,
     file_size: Option<u64>,
     modified_unix: Option<i64>,
     load: bool,
 ) -> impl IntoView {
-    let subscription = load.then(|| request_thumbnail(path.clone(), file_size, modified_unix));
+    let subscription = load.then(|| {
+        request_thumbnail(
+            path.clone(),
+            thumbnail_pixel_size(visual_size),
+            file_size,
+            modified_unix,
+        )
+    });
+
+    if let Some(subscription) = subscription.as_ref() {
+        let subscription = subscription.clone();
+        on_cleanup(move || subscription.cancel());
+    }
 
     if let Some(subscription) = subscription {
         let source = subscription.source;
         let fallback_source = source.clone();
         let animate_reveal = subscription.animate_reveal;
-        let fallback_path = path.clone();
         view! {
             <span class="icon-result-visual thumbnail-stack grid size-[var(--view-icon-size)] shrink-0 place-items-center [&>*]:[grid-area:1/1]">
-                {move || matches!(fallback_source.get(), None | Some(None)).then(|| view! {
-                    <FileIcon path=fallback_path.clone() is_dir />
-                })}
+                {move || fallback_source.get().flatten().is_none().then(|| fallback_icon(is_dir))}
                 {move || source.get().flatten().map(|source| view! {
                     <img
                         class="file-visual-image size-full object-contain"
@@ -165,7 +278,7 @@ pub(crate) fn FileVisual(
                         src=source
                         alt=""
                         loading="eager"
-                        decoding=if animate_reveal { "async" } else { "sync" }
+                        decoding="async"
                     />
                 })}
             </span>

@@ -3,15 +3,19 @@ use tauri::State;
 use windows_shell::{VisualCache, VisualKind};
 
 pub(crate) struct ShellState {
-    visuals: Arc<VisualCache>,
-    visual_slots: Arc<tokio::sync::Semaphore>,
+    icons: Arc<VisualCache>,
+    icon_slots: Arc<tokio::sync::Semaphore>,
+    thumbnails: Arc<VisualCache>,
+    thumbnail_slots: Arc<tokio::sync::Semaphore>,
 }
 
 impl ShellState {
     pub(crate) fn new() -> Self {
         Self {
-            visuals: Arc::new(VisualCache::new(24 * 1024 * 1024)),
-            visual_slots: Arc::new(tokio::sync::Semaphore::new(8)),
+            icons: Arc::new(VisualCache::new(8 * 1024 * 1024)),
+            icon_slots: Arc::new(tokio::sync::Semaphore::new(2)),
+            thumbnails: Arc::new(VisualCache::new(24 * 1024 * 1024)),
+            thumbnail_slots: Arc::new(tokio::sync::Semaphore::new(4)),
         }
     }
 }
@@ -20,20 +24,32 @@ impl ShellState {
 pub(crate) async fn get_file_visual(
     state: State<'_, ShellState>,
     path: String,
+    size: u32,
     thumbnail: bool,
 ) -> Result<Option<String>, String> {
-    let permit = state
-        .visual_slots
-        .clone()
+    let (visuals, slots, kind, stopped_message) = if thumbnail {
+        if !(32..=256).contains(&size) {
+            return Err("File preview size must be between 32 and 256 pixels".into());
+        }
+        (
+            state.thumbnails.clone(),
+            state.thumbnail_slots.clone(),
+            VisualKind::Thumbnail(size),
+            "Thumbnail service has stopped",
+        )
+    } else {
+        (
+            state.icons.clone(),
+            state.icon_slots.clone(),
+            VisualKind::Icon,
+            "Icon service has stopped",
+        )
+    };
+
+    let permit = slots
         .acquire_owned()
         .await
-        .map_err(|_| "File preview service has stopped".to_string())?;
-    let visuals = state.visuals.clone();
-    let kind = if thumbnail {
-        VisualKind::Thumbnail
-    } else {
-        VisualKind::Icon
-    };
+        .map_err(|_| stopped_message.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
         visuals.get(&path, kind).map_err(|error| error.to_string())
