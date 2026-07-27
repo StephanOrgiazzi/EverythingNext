@@ -306,7 +306,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 <span>{move || format!("{} selected", selected.with(IndexSelection::count))}</span>
                 <Show when=move || !engine_available.get()>
                     <span class="status-separator h-3 w-px bg-[var(--border)]"></span>
-                    <span class="connection-warning text-[var(--danger)]" title=move || engine_message.get()>"Everything unavailable"</span>
+                    <span class="connection-warning" title=move || engine_message.get()>"Indexing..."</span>
                 </Show>
                 <span class="statusbar-spacer flex-1"></span>
                 <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Searching…"</span></Show>

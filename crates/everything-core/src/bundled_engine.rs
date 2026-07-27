@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::env;
 use std::ffi::c_void;
 use std::fs;
+use std::mem::size_of;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -84,7 +85,7 @@ impl JobObject {
                 job.handle.as_raw_handle(),
                 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
                 std::ptr::from_ref(&limits).cast(),
-                std::mem::size_of::<JobObjectExtendedLimitInformation>() as u32,
+                size_of::<JobObjectExtendedLimitInformation>() as u32,
             )
         };
         if configured == 0 {
