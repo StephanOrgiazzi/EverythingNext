@@ -40,6 +40,24 @@ if (-not (Test-Path "src-tauri\engine\THIRD-PARTY-LICENSES.txt")) {
   throw "The bundled Everything runtime license notice is missing."
 }
 
+$legacyIdentifiers = @(
+  ("Everything" + " Modern"),
+  ("Everything" + "Modern"),
+  ("everything" + "-modern"),
+  ("everything" + "_modern"),
+  ("everything" + "Modern"),
+  ("everything" + "modern")
+)
+foreach ($legacyIdentifier in $legacyIdentifiers) {
+  $matches = & git grep -n -F -- $legacyIdentifier 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    throw "Legacy product identifier '$legacyIdentifier' remains:`n$($matches -join "`n")"
+  }
+  if ($LASTEXITCODE -ne 1) {
+    throw "git grep failed while checking '$legacyIdentifier'."
+  }
+}
+
 if (-not (Test-Path "Cargo.lock")) {
   cargo generate-lockfile
 }
