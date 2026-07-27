@@ -10,13 +10,22 @@ use super::visual_queue::request_thumbnail;
 const ICON_CACHE_MAX_ENTRIES: usize = 256;
 const ICON_LOAD_ATTEMPTS: usize = 2;
 const ICON_RETRY_DELAY_MS: u32 = 80;
-const VIEW_MODE_STORAGE_KEY: &str = "everything-next-view-mode";
+const ICON_ERROR_RETRY_MS: f64 = 1_000.0;
+const ICON_MISS_RETRY_MS: f64 = 15_000.0;
 
 type IconSource = ArcRwSignal<Option<Option<String>>>;
 
+struct IconCacheEntry {
+    source: IconSource,
+    loading: bool,
+    generation: u64,
+    retry_after_ms: Option<f64>,
+}
+
 struct IconSourceCache {
-    entries: HashMap<String, IconSource>,
+    entries: HashMap<String, IconCacheEntry>,
     order: VecDeque<String>,
+    next_generation: u64,
 }
 
 impl IconSourceCache {
@@ -24,24 +33,71 @@ impl IconSourceCache {
         Self {
             entries: HashMap::new(),
             order: VecDeque::new(),
+            next_generation: 0,
         }
     }
 
-    fn get_or_insert(&mut self, key: String) -> (IconSource, bool) {
-        if let Some(source) = self.entries.get(&key).cloned() {
+    fn next_generation(&mut self) -> u64 {
+        self.next_generation = self.next_generation.wrapping_add(1);
+        self.next_generation
+    }
+
+    fn get_or_insert(&mut self, key: String) -> (IconSource, bool, u64) {
+        let now = js_sys::Date::now();
+        if self.entries.contains_key(&key) {
+            let retry_generation = self.next_generation();
+            let (source, should_load, generation) = {
+                let entry = self
+                    .entries
+                    .get_mut(&key)
+                    .expect("an existing icon cache key remains present");
+                let retry_due = entry
+                    .retry_after_ms
+                    .is_some_and(|retry_after| retry_after <= now);
+                let should_load = !entry.loading
+                    && entry.source.get_untracked() == Some(None)
+                    && retry_due;
+                if should_load {
+                    entry.loading = true;
+                    entry.generation = retry_generation;
+                    entry.retry_after_ms = None;
+                    entry.source.set(None);
+                }
+                (entry.source.clone(), should_load, entry.generation)
+            };
             self.touch(&key);
-            return (source, false);
+            return (source, should_load, generation);
         }
 
+        let generation = self.next_generation();
         let source = ArcRwSignal::new(None);
-        self.entries.insert(key.clone(), source.clone());
+        self.entries.insert(
+            key.clone(),
+            IconCacheEntry {
+                source: source.clone(),
+                loading: true,
+                generation,
+                retry_after_ms: None,
+            },
+        );
         self.order.push_back(key);
         while self.order.len() > ICON_CACHE_MAX_ENTRIES {
             if let Some(oldest) = self.order.pop_front() {
                 self.entries.remove(&oldest);
             }
         }
-        (source, true)
+        (source, true, generation)
+    }
+
+    fn finish(&mut self, key: &str, generation: u64, retry_after_ms: Option<f64>) {
+        let Some(entry) = self.entries.get_mut(key) else {
+            return;
+        };
+        if entry.generation != generation {
+            return;
+        }
+        entry.loading = false;
+        entry.retry_after_ms = retry_after_ms;
     }
 
     fn touch(&mut self, key: &str) {
@@ -73,8 +129,16 @@ fn icon_cache_key(path: &str, is_dir: bool) -> String {
     }
 }
 
-fn icon_source(key: String) -> (IconSource, bool) {
+fn icon_source(key: String) -> (IconSource, bool, u64) {
     ICON_SOURCES.with(|sources| sources.borrow_mut().get_or_insert(key))
+}
+
+fn finish_icon_load(key: &str, generation: u64, retry_after_ms: Option<f64>) {
+    ICON_SOURCES.with(|sources| {
+        sources
+            .borrow_mut()
+            .finish(key, generation, retry_after_ms);
+    });
 }
 
 fn fallback_icon(is_dir: bool) -> AnyView {
@@ -118,11 +182,7 @@ fn fallback_icon(is_dir: bool) -> AnyView {
     }
 }
 
-fn thumbnail_pixel_size() -> u32 {
-    let visual_size = web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item(VIEW_MODE_STORAGE_KEY).ok().flatten())
-        .map_or(64, |mode| if mode == "large" { 96 } else { 64 });
+fn thumbnail_pixel_size(visual_size: u32) -> u32 {
     let pixel_ratio = web_sys::window()
         .map(|window| window.device_pixel_ratio())
         .unwrap_or(1.0);
@@ -132,7 +192,7 @@ fn thumbnail_pixel_size() -> u32 {
 #[component]
 pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
     let cache_key = icon_cache_key(&path, is_dir);
-    let (source, should_load) = icon_source(cache_key);
+    let (source, should_load, generation) = icon_source(cache_key.clone());
     if should_load {
         let source_for_load = source.clone();
         let path = path.clone();
@@ -142,6 +202,7 @@ pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
                 match backend::visual(&path, 64, false).await {
                     Ok(Some(icon)) => {
                         source_for_load.set(Some(Some(icon)));
+                        finish_icon_load(&cache_key, generation, None);
                         return;
                     }
                     Ok(None) => {}
@@ -153,10 +214,18 @@ pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
                 }
             }
 
-            if let Some(error) = last_error {
+            let retry_delay = if let Some(error) = last_error {
                 diagnostics::warn(&format!("Unable to load icon for '{path}': {error}"));
-            }
+                ICON_ERROR_RETRY_MS
+            } else {
+                ICON_MISS_RETRY_MS
+            };
             source_for_load.set(Some(None));
+            finish_icon_load(
+                &cache_key,
+                generation,
+                Some(js_sys::Date::now() + retry_delay),
+            );
         });
     }
 
@@ -176,6 +245,7 @@ pub(crate) fn FileIcon(path: String, is_dir: bool) -> impl IntoView {
 pub(crate) fn FileVisual(
     path: String,
     is_dir: bool,
+    visual_size: u32,
     file_size: Option<u64>,
     modified_unix: Option<i64>,
     load: bool,
@@ -183,7 +253,7 @@ pub(crate) fn FileVisual(
     let subscription = load.then(|| {
         request_thumbnail(
             path.clone(),
-            thumbnail_pixel_size(),
+            thumbnail_pixel_size(visual_size),
             file_size,
             modified_unix,
         )
