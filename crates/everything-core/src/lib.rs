@@ -29,6 +29,8 @@ pub enum EngineError {
     SdkLoad(String),
     #[error("The bundled Everything 1.5 runtime was not found. Run scripts/install-everything-runtime.ps1 or set EVERYTHING_ENGINE_EXE.")]
     EngineNotFound,
+    #[error("Everything is already running. Exit Everything before starting Everything Modern.")]
+    DefaultInstanceInUse,
     #[error("Invalid Everything instance name: {0}")]
     InvalidInstance(String),
     #[error("Unable to prepare the bundled Everything engine: {0}")]
@@ -55,6 +57,7 @@ impl EngineError {
             Self::SdkNotFound
             | Self::SdkLoad(_)
             | Self::EngineNotFound
+            | Self::DefaultInstanceInUse
             | Self::InvalidInstance(_)
             | Self::EngineSetup(_)
             | Self::EngineStart(_)
