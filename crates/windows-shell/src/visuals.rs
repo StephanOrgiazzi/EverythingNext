@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum VisualKind {
     Icon,
-    Thumbnail,
+    Thumbnail(u32),
 }
 
 pub struct VisualCache {
@@ -159,8 +159,7 @@ fn extract_visual_data_uri(path: &str, kind: VisualKind) -> Result<Option<String
     use windows::Win32::Foundation::{RPC_E_CHANGED_MODE, SIZE};
     use windows::Win32::System::Com::{CoInitialize, CoUninitialize};
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK,
-        SIIGBF_THUMBNAILONLY,
+        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_RESIZETOFIT,
     };
 
     struct ComGuard(bool);
@@ -185,29 +184,31 @@ fn extract_visual_data_uri(path: &str, kind: VisualKind) -> Result<Option<String
     };
 
     let path = shell_compatible_path(path);
-    if kind == VisualKind::Icon {
+    let VisualKind::Thumbnail(size) = kind else {
         return extract_jumbo_icon_data_uri(&path);
-    }
+    };
 
+    let requested_size = i32::try_from(size)
+        .map_err(|_| ShellError::Visual("The requested preview size is too large".into()))?;
     let shell_path = HSTRING::from(&path);
     let factory: IShellItemImageFactory = unsafe { SHCreateItemFromParsingName(&shell_path, None) }
         .map_err(|error| {
             ShellError::Visual(format!("Unable to create the Windows Shell item: {error}"))
         })?;
-    let thumbnail = unsafe {
+    let bitmap = match unsafe {
         factory.GetImage(
-            SIZE { cx: 256, cy: 256 },
-            SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK,
+            SIZE {
+                cx: requested_size,
+                cy: requested_size,
+            },
+            SIIGBF_RESIZETOFIT,
         )
+    } {
+        Ok(bitmap) => BitmapGuard(bitmap),
+        Err(_) => return Ok(None),
     };
 
-    match thumbnail {
-        Ok(bitmap) => {
-            let bitmap = BitmapGuard(bitmap);
-            bitmap_to_data_uri(bitmap.0).map(Some)
-        }
-        Err(_) => extract_jumbo_icon_data_uri(&path),
-    }
+    bitmap_to_data_uri(bitmap.0).map(Some)
 }
 
 #[cfg(windows)]
@@ -386,7 +387,7 @@ mod tests {
     use super::{shell_compatible_path, visual_cache_key, VisualKind};
 
     #[test]
-    fn visual_cache_keys_include_the_path() {
+    fn visual_cache_keys_include_the_path_kind_and_size() {
         assert_ne!(
             visual_cache_key(r"C:\Pictures\first.png", VisualKind::Icon),
             visual_cache_key(r"C:\Pictures\second.png", VisualKind::Icon)
@@ -397,7 +398,11 @@ mod tests {
         );
         assert_ne!(
             visual_cache_key(r"C:\Pictures\first.png", VisualKind::Icon),
-            visual_cache_key(r"C:\Pictures\first.png", VisualKind::Thumbnail)
+            visual_cache_key(r"C:\Pictures\first.png", VisualKind::Thumbnail(64))
+        );
+        assert_ne!(
+            visual_cache_key(r"C:\Pictures\first.png", VisualKind::Thumbnail(64)),
+            visual_cache_key(r"C:\Pictures\first.png", VisualKind::Thumbnail(128))
         );
     }
 
