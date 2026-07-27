@@ -24,7 +24,7 @@ struct VisualCacheInner {
 
 #[derive(Clone)]
 struct CachedVisual {
-    source: Option<String>,
+    source: String,
     bytes: usize,
 }
 
@@ -47,16 +47,18 @@ impl VisualCache {
             let mut cache = self.inner.lock();
             if let Some(cached) = cache.entries.get(&key).cloned() {
                 touch(&mut cache.order, &key);
-                return Ok(cached.source);
+                return Ok(Some(cached.source));
             }
         }
 
-        let source = extract_visual_data_uri(path, kind)?;
+        let Some(source) = extract_visual_data_uri(path, kind)? else {
+            return Ok(None);
+        };
         let result = source.clone();
-        let bytes = source.as_ref().map_or(0, String::len);
+        let bytes = source.len();
         let mut cache = self.inner.lock();
         if let Some(cached) = cache.entries.get(&key).cloned() {
-            return Ok(cached.source);
+            return Ok(Some(cached.source));
         }
 
         cache
@@ -74,7 +76,7 @@ impl VisualCache {
             }
         }
 
-        Ok(result)
+        Ok(Some(result))
     }
 }
 
