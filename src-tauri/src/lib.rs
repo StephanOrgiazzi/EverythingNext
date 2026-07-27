@@ -83,5 +83,5 @@ pub fn run() {
             cancel_trash_snapshot,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Everything Modern");
+        .expect("error while running Everything Next");
 }
