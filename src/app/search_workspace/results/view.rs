@@ -333,11 +333,11 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
         <Show when=move || context_menu.get().is_some()>
             {move || context_menu.get().map(|menu| view! {
                 <div class="context-menu fixed z-[100] w-[260px] rounded-[9px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-solid)_94%,transparent)] p-[5px] shadow-[var(--shadow)] backdrop-blur-[28px] backdrop-saturate-[1.3]" style:left=format!("{}px", menu.x) style:top=format!("{}px", menu.y) on:click=move |event| event.stop_propagation()>
-                    <ContextAction icon=icons::open() label="Open" shortcut="Enter" on_click={
+                    <ContextAction disabled=selection.indices.with(|selection| selection.count() != 1) icon=icons::open() label="Open" shortcut="Enter" on_click={
                         let path = menu.item.full_path.clone();
                         move || { files.open(path.clone()); context_menu.set(None); }
                     } />
-                    <ContextAction icon=icons::folder_open() label="Show in Explorer" shortcut="" on_click={
+                    <ContextAction disabled=selection.indices.with(|selection| selection.count() != 1) icon=icons::folder_open() label="Show in Explorer" shortcut="" on_click={
                         let path = menu.item.full_path.clone();
                         move || { files.reveal(path.clone()); context_menu.set(None); }
                     } />
@@ -381,6 +381,7 @@ fn ContextAction<F>(
     label: &'static str,
     shortcut: &'static str,
     #[prop(default = false)] danger: bool,
+    #[prop(default = false)] disabled: bool,
     on_click: F,
 ) -> impl IntoView
 where
@@ -388,9 +389,10 @@ where
 {
     view! {
         <button
-            class="context-action grid h-[34px] w-full grid-cols-[22px_1fr_auto] items-center gap-2 rounded-[5px] bg-transparent px-2 text-left hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] [&>kbd]:border-0 [&>kbd]:bg-transparent"
+            class="context-action grid h-[34px] w-full grid-cols-[22px_1fr_auto] items-center gap-2 rounded-[5px] bg-transparent px-2 text-left enabled:hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&>kbd]:border-0 [&>kbd]:bg-transparent"
             class:danger=danger
             class=("text-[var(--danger)]", danger)
+            disabled=disabled
             on:click=move |_| on_click()
         >
             {icon}<span>{label}</span><kbd>{shortcut}</kbd>

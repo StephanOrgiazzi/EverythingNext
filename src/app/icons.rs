@@ -32,10 +32,6 @@ pub(super) fn home() -> AnyView {
     native("\u{E80F}")
 }
 
-pub(super) fn clock() -> AnyView {
-    native("\u{E823}")
-}
-
 pub(super) fn document() -> AnyView {
     native("\u{E8A5}")
 }

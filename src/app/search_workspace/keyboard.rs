@@ -89,8 +89,14 @@ impl KeyboardContext {
             }
             "Enter" => {
                 event.prevent_default();
-                if let Some(item) = self.selection.focused_item(self.results) {
-                    self.files.open(item.full_path);
+                let has_single_selection = self
+                    .selection
+                    .indices
+                    .with_untracked(|selection| selection.count() == 1);
+                if has_single_selection {
+                    if let Some(item) = self.selection.focused_item(self.results) {
+                        self.files.open(item.full_path);
+                    }
                 }
             }
             "Delete" => {

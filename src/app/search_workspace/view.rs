@@ -14,6 +14,15 @@ use leptos::task::spawn_local;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Element, HtmlInputElement, MouseEvent};
 
+const SIDEBAR_QUERIES: &[&str] = &[
+    "*",
+    "ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt",
+    "ext:png;jpg;jpeg;webp;gif;svg;avif",
+    "ext:mp4;mkv;avi;mov;webm",
+    "ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi",
+    "ext:zip;7z;rar;tar;gz",
+];
+
 fn target_accepts_text_input(event: &MouseEvent) -> bool {
     event
         .target()
@@ -26,6 +35,31 @@ fn target_accepts_text_input(event: &MouseEvent) -> bool {
                     .flatten()
                     .is_some()
         })
+}
+
+fn apply_sidebar_query(current_query: &str, item_query: &str) -> String {
+    let preserved_query = current_query
+        .split_whitespace()
+        .filter(|part| !SIDEBAR_QUERIES.contains(part))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    match (preserved_query.is_empty(), item_query) {
+        (true, _) => item_query.to_string(),
+        (false, "*") => preserved_query,
+        (false, _) => format!("{preserved_query} {item_query}"),
+    }
+}
+
+fn sidebar_query_is_active(current_query: &str, item_query: &str) -> bool {
+    let active_query = current_query
+        .split_whitespace()
+        .find(|part| SIDEBAR_QUERIES.contains(part));
+
+    match item_query {
+        "*" => active_query.is_none() || active_query == Some("*"),
+        _ => active_query == Some(item_query),
+    }
 }
 
 async fn apply_pending_search_query(
@@ -186,12 +220,12 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
             </div>
 
             <section class="command-bar relative z-10 flex items-center gap-0.5 border-y border-[var(--border)] border-t-[var(--border-soft)] bg-[var(--surface)] px-[10px] py-1 backdrop-blur-[20px] backdrop-saturate-[1.15]" aria-label="Commands">
-                <button class="command-button flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Open" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+                <button class="command-button flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Open" disabled=move || selected.with(|selection| selection.count() != 1) on:click=move |_| {
                     if let Some(item) = selection.focused_item(results) {
                         files.open(item.full_path);
                     }
                 }>{icons::open()}<span>"Open"</span></button>
-                <button class="command-button flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Show in Explorer" disabled=move || selected.with(|selection| selection.count() == 0) on:click=move |_| {
+                <button class="command-button flex h-8 items-center gap-2 rounded-[5px] bg-transparent px-[10px] enabled:hover:bg-[var(--hover)] enabled:active:bg-[var(--pressed)] focus-visible:bg-[var(--hover)] disabled:text-[var(--muted)] disabled:opacity-50 [&_.native-icon]:size-[17px] [&_.native-icon]:text-base" title="Show in Explorer" disabled=move || selected.with(|selection| selection.count() != 1) on:click=move |_| {
                     if let Some(item) = selection.focused_item(results) {
                         files.reveal(item.full_path);
                     }
@@ -204,7 +238,6 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
             <div class="workspace grid min-h-0 grid-cols-[204px_minmax(0,1fr)] max-[850px]:grid-cols-[58px_minmax(0,1fr)]">
                 <aside class="sidebar flex min-h-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar-bg)] px-[6px] py-2 max-[850px]:items-center">
                     <SidebarItem label="All files" icon=icons::home() item_query="*" query />
-                    <SidebarItem label="Modified today" icon=icons::clock() item_query="dm:today" query />
                     <div class="sidebar-separator mx-[10px] mb-0.5 mt-[7px] h-px bg-[var(--border-soft)]"></div>
                     <div class="sidebar-section-label px-[10px] pb-[5px] pt-[9px] text-[11px] font-semibold text-[var(--muted)] max-[850px]:hidden">"Types"</div>
                     <SidebarItem label="Documents" icon=icons::document() item_query="ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" query />
@@ -248,10 +281,52 @@ fn SidebarItem(
     view! {
         <button
             class="sidebar-item relative grid h-8 w-full grid-cols-[20px_minmax(0,1fr)] items-center gap-[10px] rounded-[5px] bg-transparent px-[9px] text-left before:absolute before:left-px before:h-4 before:w-[3px] before:rounded-sm before:bg-[var(--accent)] before:content-[''] before:hidden hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] [&.active]:bg-[var(--hover)] [&.active]:before:block [&.active_.native-icon]:text-[var(--text)] [&_.native-icon]:size-5 [&_.native-icon]:text-base [&_.native-icon]:text-[var(--muted)] [&>span:not(.native-icon)]:min-w-0 [&>span:not(.native-icon)]:leading-5 max-[850px]:w-[38px] max-[850px]:grid-cols-[20px] max-[850px]:justify-center max-[850px]:px-0 max-[850px]:before:left-0 max-[850px]:[&>span]:hidden"
-            class:active=move || query.get() == item_query
-            on:click=move |_| query.set(item_query.into())
+            class:active=move || sidebar_query_is_active(&query.get(), item_query)
+            on:click=move |_| query.update(|current| *current = apply_sidebar_query(current, item_query))
         >
             {icon}<span>{label}</span>
         </button>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{apply_sidebar_query, sidebar_query_is_active};
+
+    const AUDIO_QUERY: &str = "ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi";
+    const IMAGE_QUERY: &str = "ext:png;jpg;jpeg;webp;gif;svg;avif";
+
+    #[test]
+    fn sidebar_filter_preserves_the_search_query() {
+        assert_eq!(
+            apply_sidebar_query("annual report", AUDIO_QUERY),
+            format!("annual report {AUDIO_QUERY}")
+        );
+    }
+
+    #[test]
+    fn changing_sidebar_filter_keeps_only_the_new_filter() {
+        assert_eq!(
+            apply_sidebar_query(&format!("annual report {IMAGE_QUERY}"), AUDIO_QUERY),
+            format!("annual report {AUDIO_QUERY}")
+        );
+    }
+
+    #[test]
+    fn all_files_removes_the_sidebar_filter_but_keeps_the_search_query() {
+        assert_eq!(
+            apply_sidebar_query(&format!("annual report {AUDIO_QUERY}"), "*"),
+            "annual report"
+        );
+    }
+
+    #[test]
+    fn active_sidebar_item_is_detected_alongside_a_search_query() {
+        let query = format!("annual report {AUDIO_QUERY}");
+
+        assert!(sidebar_query_is_active(&query, AUDIO_QUERY));
+        assert!(!sidebar_query_is_active(&query, IMAGE_QUERY));
+        assert!(!sidebar_query_is_active(&query, "*"));
+        assert!(sidebar_query_is_active("annual report", "*"));
     }
 }
