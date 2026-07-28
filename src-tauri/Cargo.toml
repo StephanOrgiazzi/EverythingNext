@@ -7,7 +7,7 @@ publish = false
 
 [lib]
 name = "everything_next_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }

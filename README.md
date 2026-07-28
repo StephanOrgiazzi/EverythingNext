@@ -84,7 +84,14 @@ $env:EVERYTHING_INSTANCE = "EverythingNextDev"
 .\scripts\build.ps1
 ```
 
-L’installateur NSIS est produit dans `target\release\bundle\nsis`.
+Ce build local privilégie la vitesse de compilation. Pour créer un build de production
+entièrement validé avec Thin LTO :
+
+```powershell
+.\scripts\build.ps1 -Production
+```
+
+Dans les deux cas, l’installateur NSIS est produit dans `target\release\bundle\nsis`.
 
 ## Raccourcis
 

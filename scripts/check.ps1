@@ -17,9 +17,6 @@ function Test-ExplicitFile([string]$VariableName) {
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
   throw "Rust/Cargo is missing. Run .\scripts\setup.ps1."
 }
-if (-not (Get-Command trunk -ErrorAction SilentlyContinue)) {
-  throw "Trunk is missing. Run .\scripts\setup.ps1."
-}
 
 if (-not (Test-Path "src-tauri\Everything3_x64.dll") -and -not (Test-ExplicitFile "EVERYTHING_SDK3_DLL")) {
   if ($InstallSdk) {
@@ -76,6 +73,5 @@ cargo check -p everything-core --locked
 cargo check -p windows-shell --locked
 cargo check -p everything-next-ui --target wasm32-unknown-unknown --locked
 cargo check -p everything-next --locked
-trunk build --release
 
 Write-Host "Validation completed." -ForegroundColor Green

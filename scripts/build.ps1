@@ -1,3 +1,7 @@
+param(
+  [switch]$Production
+)
+
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -13,6 +17,20 @@ if (-not (Test-Path "Cargo.lock")) {
   cargo generate-lockfile
 }
 
-& "$PSScriptRoot\check.ps1" -FixFormatting
+if ($Production) {
+  & "$PSScriptRoot\check.ps1"
+  $env:CARGO_PROFILE_RELEASE_LTO = "thin"
+  $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "1"
+  $env:CARGO_PROFILE_RELEASE_INCREMENTAL = "false"
+} else {
+  $env:CARGO_PROFILE_RELEASE_LTO = "false"
+  $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16"
+  $env:CARGO_PROFILE_RELEASE_INCREMENTAL = "true"
+}
+
 cargo tauri build
+if ($LASTEXITCODE -ne 0) {
+  throw "Tauri build failed with exit code $LASTEXITCODE."
+}
+
 Write-Host "Bundles are available in target\release\bundle." -ForegroundColor Green

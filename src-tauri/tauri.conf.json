@@ -7,7 +7,7 @@
   "build": {
     "beforeDevCommand": "trunk serve",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build --release",
+    "beforeBuildCommand": "trunk build --release --locked",
     "frontendDist": "../dist"
   },
   "app": {

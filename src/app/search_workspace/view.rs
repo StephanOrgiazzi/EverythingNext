@@ -12,7 +12,21 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::HtmlInputElement;
+use web_sys::{Element, HtmlInputElement, MouseEvent};
+
+fn target_accepts_text_input(event: &MouseEvent) -> bool {
+    event
+        .target()
+        .and_then(|target| target.dyn_into::<Element>().ok())
+        .is_some_and(|element| {
+            matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA")
+                || element
+                    .closest("[contenteditable='true']")
+                    .ok()
+                    .flatten()
+                    .is_some()
+        })
+}
 
 async fn apply_pending_search_query(
     query: RwSignal<String>,
@@ -127,6 +141,11 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
             class="app-shell grid h-screen grid-rows-[32px_48px_42px_minmax(0,1fr)] bg-[var(--bg)] outline-none"
             tabindex="0"
             on:keydown=on_keydown
+            on:contextmenu=move |event: MouseEvent| {
+                if !target_accepts_text_input(&event) {
+                    event.prevent_default();
+                }
+            }
             on:click=move |_| {
                 menu.close();
                 view_menu_open.set(false);
