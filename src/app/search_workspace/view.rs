@@ -135,7 +135,7 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
             on:pointerup=move |event| columns.finish_resize(event)
             on:pointercancel=move |event| columns.finish_resize(event)
         >
-            <header class="titlebar flex items-center gap-[9px] bg-[var(--header-bg)] pl-[10px]" data-tauri-drag-region on:dblclick=move |_| window::toggle_maximize()>
+            <header class="titlebar flex items-center gap-[9px] bg-[var(--header-bg)] pl-[10px]" data-tauri-drag-region>
                 <div class="app-mark grid size-5 place-items-center bg-transparent text-[0] text-transparent shadow-none [&_svg]:size-5" aria-hidden="true">
                     <svg viewBox="0 0 256 256">
                         <rect x="14" y="14" width="228" height="228" rx="56" fill="#FFD76B"></rect>
