@@ -211,6 +211,14 @@
     min-width: 630px;
   }
 
+  .drag-selection-rectangle {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+    border: 1px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
   .result-row {
     position: absolute;
     inset: 0 0 auto;

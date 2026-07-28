@@ -1,5 +1,6 @@
 mod columns;
 mod context_menu;
+mod drag_selection;
 mod file_visuals;
 mod formatting;
 mod selection;

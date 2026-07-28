@@ -118,6 +118,11 @@ impl IndexSelection {
         self.ranges.iter().copied().map(SelectionRange::len).sum()
     }
 
+    #[must_use]
+    pub fn first(&self) -> Option<u32> {
+        self.ranges.first().map(|range| range.start)
+    }
+
     pub fn ranges(&self) -> Vec<SelectionRange> {
         self.ranges.clone()
     }
@@ -161,6 +166,29 @@ impl IndexSelection {
 
         if !inserted {
             merged.push(current);
+        }
+        self.ranges = merged;
+    }
+
+    pub fn add_ranges(&mut self, ranges: impl IntoIterator<Item = SelectionRange>) {
+        let mut ranges = ranges.into_iter();
+        let Some(first) = ranges.next() else {
+            return;
+        };
+        let mut combined = std::mem::take(&mut self.ranges);
+        combined.push(SelectionRange::new(first.start, first.end));
+        combined.extend(ranges.map(|range| SelectionRange::new(range.start, range.end)));
+        combined.sort_unstable_by_key(|range| range.start);
+
+        let mut merged: Vec<SelectionRange> = Vec::with_capacity(combined.len());
+        for range in combined {
+            if let Some(previous) = merged.last_mut() {
+                if range.start <= previous.end.saturating_add(1) {
+                    previous.end = previous.end.max(range.end);
+                    continue;
+                }
+            }
+            merged.push(range);
         }
         self.ranges = merged;
     }

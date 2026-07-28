@@ -1,3 +1,4 @@
+use super::drag_selection::DragSelection;
 use super::{
     file_size, modified_date, result_count, ColumnHeaders, FileIcon, FileVisual, ResultColumns,
     ResultContextMenu, ResultSelection, ResultViewport, SelectionModifiers, ViewMode,
@@ -8,7 +9,7 @@ use crate::app::search_workspace::search::SearchResults;
 use crate::diagnostics;
 use everything_core::IndexSelection;
 use leptos::prelude::*;
-use web_sys::MouseEvent;
+use web_sys::{MouseEvent, PointerEvent};
 
 #[derive(Clone, Copy)]
 pub(in crate::app::search_workspace) struct ResultsViewContext {
@@ -50,6 +51,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
     let focused_index = selection.focused_index;
     let error = files.error;
     let list_ref = viewport.list_ref;
+    let drag_selection = DragSelection::new();
     let on_scroll = move |event: web_sys::Event| {
         viewport.update_from_scroll_event(event);
         menu.close();
@@ -82,8 +84,27 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 }
                 aria-rowcount=move || viewport.row_count(total.get())
                 on:scroll=on_scroll
+                on:pointerdown=move |event: PointerEvent| {
+                    if drag_selection.begin(&event, viewport, selection) {
+                        menu.close();
+                    }
+                }
+                on:pointermove=move |event: PointerEvent| {
+                    drag_selection.update(&event, total.get_untracked(), viewport, selection);
+                }
+                on:pointerup=move |event: PointerEvent| {
+                    drag_selection.finish(&event, total.get_untracked(), viewport, selection);
+                }
+                on:pointercancel=move |event: PointerEvent| {
+                    drag_selection.cancel(&event, viewport, selection);
+                }
+                on:lostpointercapture=move |event: PointerEvent| {
+                    drag_selection.lost_pointer_capture(&event, selection);
+                }
                 on:click=move |_| {
-                    selection.clear();
+                    if !drag_selection.consume_suppressed_click() {
+                        selection.clear();
+                    }
                     menu.close();
                 }
             >
@@ -267,6 +288,16 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                             }}
                         }
                     />
+
+                    <Show when=move || drag_selection.rectangle.get().is_some()>
+                        {move || drag_selection.rectangle.get().map(|rectangle| view! {
+                            <div
+                                class="drag-selection-rectangle"
+                                style=rectangle.style()
+                                aria-hidden="true"
+                            ></div>
+                        })}
+                    </Show>
                 </div>
 
                 <Show when=move || query.get().trim().is_empty()>

@@ -21,6 +21,13 @@ pub(crate) struct ResultSelection {
     pub anchor: RwSignal<Option<u32>>,
 }
 
+#[derive(Clone)]
+pub(super) struct SelectionSnapshot {
+    pub indices: IndexSelection,
+    focused_index: Option<u32>,
+    anchor: Option<u32>,
+}
+
 impl ResultSelection {
     pub fn new() -> Self {
         Self {
@@ -75,6 +82,31 @@ impl ResultSelection {
                 .update(|selection| selection.select_only(index));
             self.anchor.set(Some(index));
         }
+    }
+
+    pub fn replace_indices(self, indices: IndexSelection) {
+        let focused = self
+            .focused_index
+            .get_untracked()
+            .filter(|index| indices.contains(*index))
+            .or_else(|| indices.first());
+        self.indices.set(indices);
+        self.focused_index.set(focused);
+        self.anchor.set(focused);
+    }
+
+    pub(super) fn snapshot(self) -> SelectionSnapshot {
+        SelectionSnapshot {
+            indices: self.indices.get_untracked(),
+            focused_index: self.focused_index.get_untracked(),
+            anchor: self.anchor.get_untracked(),
+        }
+    }
+
+    pub(super) fn restore(self, snapshot: &SelectionSnapshot) {
+        self.indices.set(snapshot.indices.clone());
+        self.focused_index.set(snapshot.focused_index);
+        self.anchor.set(snapshot.anchor);
     }
 
     pub fn focus(
