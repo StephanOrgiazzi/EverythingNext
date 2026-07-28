@@ -1,4 +1,5 @@
-use everything_core::MAX_CONCURRENT_THUMBNAIL_LOADS;
+use crate::search::{resolve_selection, SearchState};
+use everything_core::{SelectionRequest, MAX_CONCURRENT_THUMBNAIL_LOADS};
 use std::sync::Arc;
 use tauri::State;
 use windows_shell::{VisualCache, VisualKind};
@@ -63,6 +64,21 @@ pub(crate) async fn get_file_visual(
 pub(crate) async fn copy_text(text: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         windows_shell::copy_text(&text).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn copy_files(
+    search: State<'_, SearchState>,
+    request: SelectionRequest,
+) -> Result<(), String> {
+    const MAX_CLIPBOARD_ITEMS: usize = 10_000;
+
+    let paths = resolve_selection(&search, request, MAX_CLIPBOARD_ITEMS).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        windows_shell::copy_files(&paths).map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| error.to_string())?

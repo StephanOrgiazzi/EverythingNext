@@ -99,6 +99,20 @@ impl FileOperations {
         });
     }
 
+    pub fn copy_files(self, selection: ResultSelection, results: SearchResults) {
+        let indices = selection.indices.get_untracked();
+        if indices.is_empty() {
+            return;
+        }
+
+        let request = results.selection_request(indices.ranges());
+        spawn_local(async move {
+            if let Err(message) = backend::copy_files(request).await {
+                self.error.set(Some(message));
+            }
+        });
+    }
+
     pub fn begin_rename(self, item: SearchResult) {
         self.rename_value.set(item.name.clone());
         self.rename_target.set(Some(item));

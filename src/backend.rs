@@ -54,6 +54,7 @@ mod command {
     pub const PREPARE_TRASH: &str = "prepare_trash_selection";
     pub const EXECUTE_TRASH: &str = "execute_trash_snapshot";
     pub const CANCEL_TRASH: &str = "cancel_trash_snapshot";
+    pub const COPY_FILES: &str = "copy_files";
     pub const COPY_TEXT: &str = "copy_text";
 }
 
@@ -197,6 +198,10 @@ pub async fn cancel_trash(snapshot_id: u64) -> Result<(), String> {
 
 pub async fn copy_text(text: &str) -> Result<(), String> {
     invoke(command::COPY_TEXT, &TextArgs { text }).await
+}
+
+pub async fn copy_files(request: SelectionRequest) -> Result<(), String> {
+    invoke(command::COPY_FILES, &RequestArgs { request }).await
 }
 
 pub async fn pick_folder() -> Result<Option<String>, String> {

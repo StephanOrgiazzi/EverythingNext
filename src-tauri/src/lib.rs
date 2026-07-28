@@ -5,7 +5,9 @@ mod trash;
 
 use desktop::{take_pending_search_query, LaunchState};
 use search::{begin_search_generation, engine_status, search_everything, SearchState};
-use shell_commands::{copy_text, get_file_visual, open_path, rename_path, reveal_path, ShellState};
+use shell_commands::{
+    copy_files, copy_text, get_file_visual, open_path, rename_path, reveal_path, ShellState,
+};
 use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
 use trash::{cancel_trash_snapshot, execute_trash_snapshot, prepare_trash_selection, TrashState};
@@ -74,6 +76,7 @@ pub fn run() {
             search_everything,
             take_pending_search_query,
             get_file_visual,
+            copy_files,
             copy_text,
             open_path,
             reveal_path,

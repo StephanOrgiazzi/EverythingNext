@@ -59,6 +59,12 @@ impl KeyboardContext {
             return;
         }
 
+        if event.ctrl_key() && key.eq_ignore_ascii_case("c") {
+            event.prevent_default();
+            self.files.copy_files(self.selection, self.results);
+            return;
+        }
+
         if let Some(delta) = self.viewport.navigation_delta(&key) {
             event.prevent_default();
             self.move_selection_focus(FocusMove::Relative(delta), &event);

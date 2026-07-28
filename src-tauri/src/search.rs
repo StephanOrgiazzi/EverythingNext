@@ -1,4 +1,4 @@
-use everything_core::{EngineStatus, EverythingEngine, QueryRequest, SearchPage};
+use everything_core::{EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest};
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc, Mutex,
@@ -98,6 +98,50 @@ pub(crate) async fn search_everything(
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+pub(crate) async fn resolve_selection(
+    state: &SearchState,
+    request: SelectionRequest,
+    max_items: usize,
+) -> Result<Vec<String>, String> {
+    const MAX_SELECTION_RANGES: usize = 16_384;
+
+    if request.ranges.is_empty() {
+        return Err("No items selected".into());
+    }
+    if request.ranges.len() > MAX_SELECTION_RANGES {
+        return Err("Invalid selection: too many disjoint ranges".into());
+    }
+    if request_is_stale(request.request_id, &state.latest_generation)
+        || request.request_id != state.latest_generation.load(Ordering::SeqCst)
+    {
+        return Err("The search changed since the selection was made. Try again.".into());
+    }
+
+    let engine = state.engine.clone();
+    let latest_generation = state.latest_generation.clone();
+    let request_id = request.request_id;
+    let paths = tauri::async_runtime::spawn_blocking(move || {
+        let mut guard = engine
+            .lock()
+            .map_err(|_| "Everything lock was poisoned".to_string())?;
+        let engine = guard
+            .as_mut()
+            .ok_or_else(|| "Everything engine is unavailable".to_string())?;
+        engine
+            .resolve_selection_cancellable(request, max_items, || {
+                request_is_stale(request_id, &latest_generation)
+            })
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+
+    if request_id != state.latest_generation.load(Ordering::SeqCst) {
+        return Err("The search changed while preparing the operation.".into());
+    }
+    Ok(paths)
 }
 
 pub(crate) fn request_is_stale(request_id: u32, latest_generation: &AtomicU32) -> bool {

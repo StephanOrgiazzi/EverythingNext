@@ -373,15 +373,10 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
                         move || { files.reveal(path.clone()); context_menu.set(None); }
                     } />
                     <div class="context-separator mx-[7px] my-1 h-px bg-[var(--border)]"></div>
-                    <ContextAction icon=icons::copy() label="Copy name" shortcut="" on_click={
-                        let name = menu.item.name.clone();
-                        move || { files.copy(name.clone()); context_menu.set(None); }
+                    <ContextAction icon=icons::copy() label="Copy file" shortcut="Ctrl+C" on_click={
+                        move || { files.copy_files(selection, results); context_menu.set(None); }
                     } />
                     <ContextAction icon=icons::copy() label="Copy path" shortcut="" on_click={
-                        let path = menu.item.parent_path.clone();
-                        move || { files.copy(path.clone()); context_menu.set(None); }
-                    } />
-                    <ContextAction icon=icons::copy() label="Copy full path" shortcut="" on_click={
                         let path = menu.item.full_path.clone();
                         move || { files.copy(path.clone()); context_menu.set(None); }
                     } />

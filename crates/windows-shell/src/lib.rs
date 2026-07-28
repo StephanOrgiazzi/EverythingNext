@@ -2,7 +2,7 @@ mod clipboard;
 mod file_operations;
 mod visuals;
 
-pub use clipboard::copy_text;
+pub use clipboard::{copy_files, copy_text};
 pub use file_operations::{open_path, rename_path, reveal_path, trash_paths, TrashReport};
 pub use visuals::{VisualCache, VisualKind};
 

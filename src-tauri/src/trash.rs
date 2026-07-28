@@ -1,4 +1,4 @@
-use crate::search::{request_is_stale, SearchState};
+use crate::search::{resolve_selection, SearchState};
 use everything_core::{SelectionRequest, TrashOutcome, TrashPreparation};
 use std::collections::{HashMap, HashSet};
 use std::sync::{
@@ -8,7 +8,6 @@ use std::sync::{
 use tauri::State;
 
 const MAX_TRASH_ITEMS: usize = 10_000;
-const MAX_SELECTION_RANGES: usize = 16_384;
 
 pub(crate) struct TrashState {
     snapshots: Mutex<HashMap<u64, Vec<String>>>,
@@ -80,40 +79,7 @@ pub(crate) async fn prepare_trash_selection(
     trash: State<'_, TrashState>,
     request: SelectionRequest,
 ) -> Result<TrashPreparation, String> {
-    if request.ranges.is_empty() {
-        return Err("No items selected".into());
-    }
-    if request.ranges.len() > MAX_SELECTION_RANGES {
-        return Err("Invalid selection: too many disjoint ranges".into());
-    }
-    if request_is_stale(request.request_id, &search.latest_generation)
-        || request.request_id != search.latest_generation.load(Ordering::SeqCst)
-    {
-        return Err("The search changed since the selection was made. Try again.".into());
-    }
-
-    let engine = search.engine.clone();
-    let latest_generation = search.latest_generation.clone();
-    let request_id = request.request_id;
-    let paths = tauri::async_runtime::spawn_blocking(move || {
-        let mut guard = engine
-            .lock()
-            .map_err(|_| "Everything lock was poisoned".to_string())?;
-        let engine = guard
-            .as_mut()
-            .ok_or_else(|| "Everything engine is unavailable".to_string())?;
-        engine
-            .resolve_selection_cancellable(request, MAX_TRASH_ITEMS, || {
-                request_is_stale(request_id, &latest_generation)
-            })
-            .map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())??;
-
-    if request_id != search.latest_generation.load(Ordering::SeqCst) {
-        return Err("The search changed while preparing the operation.".into());
-    }
+    let paths = resolve_selection(&search, request, MAX_TRASH_ITEMS).await?;
     trash.store(paths)
 }
 
