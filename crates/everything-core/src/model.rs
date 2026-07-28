@@ -308,6 +308,9 @@ pub struct SearchPage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineStatus {
     pub available: bool,
+    pub indexing: bool,
+    pub ready_volumes: u32,
+    pub total_volumes: u32,
     pub message: String,
     pub version: Option<String>,
 }

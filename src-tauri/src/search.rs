@@ -40,6 +40,9 @@ pub(crate) async fn engine_status(state: State<'_, SearchState>) -> Result<Engin
     if let Some(error) = &state.engine_error {
         return Ok(EngineStatus {
             available: false,
+            indexing: false,
+            ready_volumes: 0,
+            total_volumes: 0,
             message: error.clone(),
             version: None,
         });

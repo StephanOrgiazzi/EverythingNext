@@ -96,6 +96,9 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
     let viewport = ResultViewport::new();
     let engine_message = RwSignal::new("Connecting to Everything…".to_string());
     let engine_available = RwSignal::new(false);
+    let engine_indexing = RwSignal::new(true);
+    let ready_volumes = RwSignal::new(0_u32);
+    let total_volumes = RwSignal::new(0_u32);
     let settings_open = RwSignal::new(false);
     let view_menu_open = RwSignal::new(false);
     let search_ref = NodeRef::<leptos::html::Input>::new();
@@ -103,9 +106,17 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
     spawn_local(async move {
         loop {
             let status = backend::status().await;
+            let poll_delay_ms = if status.indexing { 500 } else { 3_000 };
+            let previous_ready = ready_volumes.get_untracked();
             engine_available.set(status.available);
+            engine_indexing.set(status.indexing);
             engine_message.set(status.message);
-            TimeoutFuture::new(3_000).await;
+            ready_volumes.set(status.ready_volumes);
+            total_volumes.set(status.total_volumes);
+            if status.ready_volumes > previous_ready && !query.get_untracked().trim().is_empty() {
+                results.refresh_incrementally();
+            }
+            TimeoutFuture::new(poll_delay_ms).await;
         }
     });
 
@@ -130,10 +141,12 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
 
     let visible_start = viewport.visible_start();
     let visible_end = viewport.visible_end(visible_start, total);
-    results.monitor(visible_start, visible_end, move || {
+    results.monitor(visible_start, visible_end, move |preserve_view| {
         selection.clear();
         files.reset_for_new_search();
-        viewport.reset_scroll();
+        if !preserve_view {
+            viewport.reset_scroll();
+        }
     });
 
     let results_view = ResultsViewContext {
@@ -146,6 +159,9 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
         visible_start,
         visible_end,
         engine_available,
+        engine_indexing,
+        ready_volumes,
+        total_volumes,
         engine_message,
     };
 

@@ -1,6 +1,5 @@
 use crate::{
-    EngineError, EngineStatus, QueryRequest, SearchPage, SearchResult, SelectionRequest,
-    SortColumn, SortDirection,
+    EngineError, EngineStatus, QueryRequest, SearchPage, SearchResult, SortColumn, SortDirection,
 };
 use libloading::Library;
 use std::env;
@@ -13,7 +12,6 @@ const PROPERTY_ID_PATH: u32 = 1;
 const PROPERTY_ID_SIZE: u32 = 2;
 const PROPERTY_ID_EXTENSION: u32 = 3;
 const PROPERTY_ID_DATE_MODIFIED: u32 = 5;
-const DEFAULT_INSTANCE_NAME: &str = "";
 const UNKNOWN_UINT64: u64 = u64::MAX;
 const WINDOWS_TO_UNIX_SECONDS: u64 = 11_644_473_600;
 
@@ -70,12 +68,12 @@ pub struct EverythingSdk {
 unsafe impl Send for EverythingSdk {}
 
 impl EverythingSdk {
-    pub fn load() -> Result<Self, EngineError> {
+    pub fn load(instance_name: &str) -> Result<Self, EngineError> {
         let path = locate_sdk().ok_or(EngineError::SdkNotFound)?;
-        Self::load_from(&path)
+        Self::load_from(&path, instance_name)
     }
 
-    pub fn load_from(path: &Path) -> Result<Self, EngineError> {
+    pub fn load_from(path: &Path, instance_name: &str) -> Result<Self, EngineError> {
         if !path.is_file() {
             return Err(EngineError::SdkNotFound);
         }
@@ -125,7 +123,7 @@ impl EverythingSdk {
         let get_result_size = symbol!("Everything3_GetResultSize", GetResultU64);
         let get_result_date_modified = symbol!("Everything3_GetResultDateModified", GetResultU64);
 
-        let instance_name = configured_instance_name();
+        let instance_name = instance_name.to_string();
         let instance_wide = to_wide(&instance_name);
         let instance_ptr = if instance_name.is_empty() {
             ptr::null()
@@ -195,6 +193,9 @@ impl EverythingSdk {
         let instance = display_instance_name(&self.instance_name);
         EngineStatus {
             available: loaded,
+            indexing: !loaded,
+            ready_volumes: u32::from(loaded),
+            total_volumes: 1,
             message: if loaded {
                 format!("Everything {version} is connected to {instance} via SDK3.")
             } else {
@@ -221,10 +222,12 @@ impl EverythingSdk {
             (self.set_search_text_w)(search_state.pointer, search.as_ptr())
         })?;
 
-        let (sort_property, ascending) = map_sort(request.sort.column, request.sort.direction);
-        self.check_call("Everything3_AddSearchSort", unsafe {
-            (self.add_search_sort)(search_state.pointer, sort_property, ascending)
-        })?;
+        for column in sort_columns(request.sort.column) {
+            let (sort_property, ascending) = map_sort(*column, request.sort.direction);
+            self.check_call("Everything3_AddSearchSort", unsafe {
+                (self.add_search_sort)(search_state.pointer, sort_property, ascending)
+            })?;
+        }
         for property_id in [
             PROPERTY_ID_NAME,
             PROPERTY_ID_PATH,
@@ -309,61 +312,6 @@ impl EverythingSdk {
             total,
             items,
         })
-    }
-
-    pub fn resolve_selection_cancellable<F>(
-        &mut self,
-        request: SelectionRequest,
-        max_items: usize,
-        mut is_cancelled: F,
-    ) -> Result<Vec<String>, EngineError>
-    where
-        F: FnMut() -> bool,
-    {
-        let ranges = normalize_selection_ranges(request.ranges);
-        let requested = ranges.iter().copied().map(|range| range.len()).sum::<u64>();
-        let max_items_as_u64 = u64::try_from(max_items).unwrap_or(u64::MAX);
-        if requested > max_items_as_u64 {
-            return Err(EngineError::InvalidSelection(format!(
-                "This operation is limited to {max_items} items at a time"
-            )));
-        }
-        let capacity =
-            usize::try_from(requested).expect("validated selection count fits into usize");
-        let mut paths = Vec::with_capacity(capacity);
-
-        for range in ranges {
-            let mut offset = range.start;
-            loop {
-                if is_cancelled() {
-                    return Err(EngineError::InvalidSelection(
-                        "The search changed while preparing the operation".into(),
-                    ));
-                }
-                let remaining = u64::from(range.end) - u64::from(offset) + 1;
-                let limit =
-                    u32::try_from(remaining.min(1_024)).expect("page size is bounded to 1024");
-                let page = self.query(QueryRequest {
-                    query: request.query.clone(),
-                    offset,
-                    limit,
-                    sort: request.sort,
-                    request_id: request.request_id,
-                })?;
-                let returned =
-                    u32::try_from(page.items.len()).expect("page contains at most 1024 items");
-                if returned == 0 {
-                    break;
-                }
-                paths.extend(page.items.into_iter().map(|item| item.full_path));
-                if returned < limit || u64::from(returned) >= remaining {
-                    break;
-                }
-                offset = offset.saturating_add(returned);
-            }
-        }
-
-        Ok(paths)
     }
 
     fn version(&self) -> String {
@@ -469,31 +417,6 @@ impl Drop for ResultListGuard {
     }
 }
 
-fn normalize_selection_ranges(
-    mut ranges: Vec<crate::SelectionRange>,
-) -> Vec<crate::SelectionRange> {
-    for range in &mut ranges {
-        *range = crate::SelectionRange::new(range.start, range.end);
-    }
-    ranges.sort_unstable_by_key(|range| range.start);
-
-    let mut normalized: Vec<crate::SelectionRange> = Vec::with_capacity(ranges.len());
-    for range in ranges {
-        if let Some(last) = normalized.last_mut() {
-            if range.start <= last.end.saturating_add(1) {
-                last.end = last.end.max(range.end);
-                continue;
-            }
-        }
-        normalized.push(range);
-    }
-    normalized
-}
-
-fn configured_instance_name() -> String {
-    env::var("EVERYTHING_INSTANCE").unwrap_or_else(|_| DEFAULT_INSTANCE_NAME.into())
-}
-
 fn display_instance_name(instance_name: &str) -> String {
     if instance_name.is_empty() {
         "l’instance principale".into()
@@ -539,6 +462,16 @@ fn map_sort(column: SortColumn, direction: SortDirection) -> (u32, i32) {
     (property_id, ascending)
 }
 
+fn sort_columns(primary: SortColumn) -> &'static [SortColumn] {
+    match primary {
+        SortColumn::Name => &[SortColumn::Name, SortColumn::Path],
+        SortColumn::Path => &[SortColumn::Path, SortColumn::Name],
+        SortColumn::Extension => &[SortColumn::Extension, SortColumn::Name, SortColumn::Path],
+        SortColumn::Size => &[SortColumn::Size, SortColumn::Name, SortColumn::Path],
+        SortColumn::Modified => &[SortColumn::Modified, SortColumn::Name, SortColumn::Path],
+    }
+}
+
 fn filetime_to_unix(filetime: u64) -> Option<i64> {
     let seconds = filetime / 10_000_000;
     if seconds < WINDOWS_TO_UNIX_SECONDS {
@@ -558,10 +491,8 @@ fn stable_id(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        filetime_to_unix, map_sort, normalize_selection_ranges, stable_id, PROPERTY_ID_NAME,
-    };
-    use crate::{SelectionRange, SortColumn, SortDirection};
+    use super::{filetime_to_unix, map_sort, sort_columns, stable_id, PROPERTY_ID_NAME};
+    use crate::{SortColumn, SortDirection};
 
     #[test]
     fn maps_default_sort() {
@@ -580,6 +511,14 @@ mod tests {
     }
 
     #[test]
+    fn adds_stable_secondary_sorts_for_federated_results() {
+        assert_eq!(
+            sort_columns(SortColumn::Size),
+            &[SortColumn::Size, SortColumn::Name, SortColumn::Path]
+        );
+    }
+
+    #[test]
     fn converts_windows_epoch() {
         assert_eq!(filetime_to_unix(116_444_736_000_000_000), Some(0));
     }
@@ -588,19 +527,5 @@ mod tests {
     fn stable_ids_are_deterministic() {
         assert_eq!(stable_id(r"C:\test.txt"), stable_id(r"C:\test.txt"));
         assert_ne!(stable_id(r"C:\a.txt"), stable_id(r"C:\b.txt"));
-    }
-
-    #[test]
-    fn normalizes_overlapping_selection_ranges() {
-        let ranges = normalize_selection_ranges(vec![
-            SelectionRange::new(20, 25),
-            SelectionRange::new(4, 8),
-            SelectionRange::new(9, 12),
-            SelectionRange::new(24, 30),
-        ]);
-        assert_eq!(
-            ranges,
-            vec![SelectionRange::new(4, 12), SelectionRange::new(20, 30)]
-        );
     }
 }

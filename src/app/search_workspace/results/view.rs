@@ -22,6 +22,9 @@ pub(in crate::app::search_workspace) struct ResultsViewContext {
     pub visible_start: Memo<u32>,
     pub visible_end: Memo<u32>,
     pub engine_available: RwSignal<bool>,
+    pub engine_indexing: RwSignal<bool>,
+    pub ready_volumes: RwSignal<u32>,
+    pub total_volumes: RwSignal<u32>,
     pub engine_message: RwSignal<String>,
 }
 
@@ -37,6 +40,9 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
         visible_start,
         visible_end,
         engine_available,
+        engine_indexing,
+        ready_volumes,
+        total_volumes,
         engine_message,
     } = context;
     let SearchResults {
@@ -336,9 +342,25 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 <span>{move || result_count(total.get())}</span>
                 <span class="status-separator h-3 w-px bg-[var(--border)]"></span>
                 <span>{move || format!("{} selected", selected.with(IndexSelection::count))}</span>
-                <Show when=move || !engine_available.get()>
+                <Show when=move || engine_indexing.get() || !engine_available.get()>
                     <span class="status-separator h-3 w-px bg-[var(--border)]"></span>
-                    <span class="connection-warning" title=move || engine_message.get()>"Indexing..."</span>
+                    <span class="connection-warning" title=move || engine_message.get()>
+                        {move || {
+                            if engine_indexing.get() {
+                                if engine_available.get() {
+                                    format!(
+                                        "{}/{} drives ready · Indexing…",
+                                        ready_volumes.get(),
+                                        total_volumes.get(),
+                                    )
+                                } else {
+                                    "Indexing first drive…".to_string()
+                                }
+                            } else {
+                                "Index unavailable".to_string()
+                            }
+                        }}
+                    </span>
                 </Show>
                 <span class="statusbar-spacer flex-1"></span>
                 <Show when=move || loading.get()><span class="loading-indicator"></span><span>"Searching…"</span></Show>

@@ -19,6 +19,7 @@ pub(super) struct SearchResults {
     excluded_folders: RwSignal<Vec<String>>,
     generation: RwSignal<u32>,
     refresh_token: RwSignal<u32>,
+    preserve_view_on_refresh: RwSignal<bool>,
     pages: RwSignal<BTreeMap<u32, Vec<SearchResult>>>,
     loading_pages: RwSignal<HashSet<(u32, u32)>>,
     pub(super) total: RwSignal<u32>,
@@ -35,6 +36,7 @@ impl SearchResults {
             excluded_folders,
             generation: RwSignal::new(0),
             refresh_token: RwSignal::new(0),
+            preserve_view_on_refresh: RwSignal::new(false),
             pages: RwSignal::new(BTreeMap::new()),
             loading_pages: RwSignal::new(HashSet::new()),
             total: RwSignal::new(0),
@@ -45,13 +47,15 @@ impl SearchResults {
         }
     }
 
-    fn begin_generation(self) -> u32 {
+    fn begin_generation(self, preserve_view: bool) -> u32 {
         let next_generation = self.generation.get_untracked().saturating_add(1);
         self.generation.set(next_generation);
         self.pages.set(BTreeMap::new());
         self.loading_pages.set(HashSet::new());
-        self.total.set(0);
-        self.render_latency_ms.set(None);
+        if !preserve_view {
+            self.total.set(0);
+            self.render_latency_ms.set(None);
+        }
         self.error.set(None);
         next_generation
     }
@@ -185,6 +189,11 @@ impl SearchResults {
             .update(|value| *value = value.saturating_add(1));
     }
 
+    pub fn refresh_incrementally(self) {
+        self.preserve_view_on_refresh.set(true);
+        self.refresh();
+    }
+
     pub fn selection_request(self, ranges: Vec<SelectionRange>) -> SelectionRequest {
         SelectionRequest {
             query: compose_query(
@@ -199,15 +208,17 @@ impl SearchResults {
 
     pub fn monitor<F>(self, visible_start: Memo<u32>, visible_end: Memo<u32>, on_new_search: F)
     where
-        F: Fn() + Copy + Send + Sync + 'static,
+        F: Fn(bool) + Copy + Send + Sync + 'static,
     {
         Effect::new(move |_| {
             let current_query = self.query.get();
             let excluded_folders = self.excluded_folders.get();
             let current_sort = self.sort.get();
             let _refresh = self.refresh_token.get();
-            let next_generation = self.begin_generation();
-            on_new_search();
+            let preserve_view = self.preserve_view_on_refresh.get_untracked();
+            self.preserve_view_on_refresh.set(false);
+            let next_generation = self.begin_generation(preserve_view);
+            on_new_search(preserve_view);
 
             if current_query.trim().is_empty() {
                 self.loading.set(false);

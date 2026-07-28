@@ -111,6 +111,9 @@ pub async fn status() -> EngineStatus {
     if !has_tauri() {
         return EngineStatus {
             available: false,
+            indexing: false,
+            ready_volumes: 0,
+            total_volumes: 0,
             message: "Browser preview — run `cargo tauri dev` to use Everything.".into(),
             version: None,
         };
@@ -119,6 +122,9 @@ pub async fn status() -> EngineStatus {
         Ok(status) => status,
         Err(error) => EngineStatus {
             available: false,
+            indexing: false,
+            ready_volumes: 0,
+            total_volumes: 0,
             message: error,
             version: None,
         },
