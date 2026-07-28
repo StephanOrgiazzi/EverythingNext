@@ -163,7 +163,6 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
                         on:input=on_search_input
                         autofocus
                     />
-                    <kbd>"Ctrl L"</kbd>
                 </div>
             </div>
 

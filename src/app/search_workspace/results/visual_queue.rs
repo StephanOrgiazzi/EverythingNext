@@ -1,4 +1,5 @@
 use crate::{backend, diagnostics};
+use everything_core::MAX_CONCURRENT_THUMBNAIL_LOADS;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::{Cell, RefCell};
@@ -9,7 +10,6 @@ use std::sync::{
     Arc,
 };
 
-const THUMBNAIL_WORKERS: usize = 4;
 const CACHE_MAX_BYTES: usize = 24 * 1024 * 1024;
 const CACHE_MAX_ENTRIES: usize = 512;
 
@@ -217,7 +217,7 @@ impl ThumbnailPipeline {
     }
 
     fn workers_to_start(&mut self) -> usize {
-        let available = THUMBNAIL_WORKERS.saturating_sub(self.running_workers);
+        let available = MAX_CONCURRENT_THUMBNAIL_LOADS.saturating_sub(self.running_workers);
         if available == 0 {
             return 0;
         }
@@ -330,7 +330,8 @@ pub(super) fn request_thumbnail(
 
 #[cfg(test)]
 mod tests {
-    use super::{ThumbnailKey, ThumbnailPipeline, THUMBNAIL_WORKERS};
+    use super::{ThumbnailKey, ThumbnailPipeline};
+    use everything_core::MAX_CONCURRENT_THUMBNAIL_LOADS;
     use leptos::prelude::*;
 
     fn key(path: &str, pixel_size: u32, modified_unix: i64) -> ThumbnailKey {
@@ -391,8 +392,8 @@ mod tests {
                 let (_, workers) = pipeline.subscribe(key(&format!("{index}.png"), 96, 1));
                 started += workers;
             }
-            assert_eq!(started, THUMBNAIL_WORKERS);
-            assert_eq!(pipeline.running_workers, THUMBNAIL_WORKERS);
+            assert_eq!(started, MAX_CONCURRENT_THUMBNAIL_LOADS);
+            assert_eq!(pipeline.running_workers, MAX_CONCURRENT_THUMBNAIL_LOADS);
         });
     }
 }

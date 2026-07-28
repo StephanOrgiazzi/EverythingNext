@@ -111,6 +111,10 @@
     cursor: default;
   }
 
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
   svg {
     width: 18px;
     height: 18px;
@@ -212,6 +216,7 @@
     inset: 0 0 auto;
     height: 34px;
     display: grid;
+    cursor: pointer;
   }
 
   .result-row:hover {
@@ -265,6 +270,10 @@
 
   .icon-result-name {
     white-space: nowrap;
+  }
+
+  .icon-result {
+    cursor: pointer;
   }
 
   .icon-result-medium .icon-result-text {

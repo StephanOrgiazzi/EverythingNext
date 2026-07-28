@@ -301,7 +301,7 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                 </Show>
             </div>
 
-            <footer class="statusbar flex items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[11px] text-[var(--muted)]">
+            <footer class="statusbar flex items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-xs text-[var(--muted)]">
                 <span>{move || result_count(total.get())}</span>
                 <span class="status-separator h-3 w-px bg-[var(--border)]"></span>
                 <span>{move || format!("{} selected", selected.with(IndexSelection::count))}</span>

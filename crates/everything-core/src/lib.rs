@@ -14,6 +14,8 @@ use std::path::PathBuf;
 pub use model::*;
 pub use windows_name::{validate_windows_name, WindowsNameError};
 
+pub const MAX_CONCURRENT_THUMBNAIL_LOADS: usize = 16;
+
 #[cfg(windows)]
 const EVERYTHING3_ERROR_IPC_PIPE_NOT_FOUND: u32 = 0xE000_0002;
 #[cfg(windows)]

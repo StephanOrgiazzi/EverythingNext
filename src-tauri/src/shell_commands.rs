@@ -1,3 +1,4 @@
+use everything_core::MAX_CONCURRENT_THUMBNAIL_LOADS;
 use std::sync::Arc;
 use tauri::State;
 use windows_shell::{VisualCache, VisualKind};
@@ -15,7 +16,7 @@ impl ShellState {
             icons: Arc::new(VisualCache::new(8 * 1024 * 1024)),
             icon_slots: Arc::new(tokio::sync::Semaphore::new(2)),
             thumbnails: Arc::new(VisualCache::new(24 * 1024 * 1024)),
-            thumbnail_slots: Arc::new(tokio::sync::Semaphore::new(4)),
+            thumbnail_slots: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_THUMBNAIL_LOADS)),
         }
     }
 }
