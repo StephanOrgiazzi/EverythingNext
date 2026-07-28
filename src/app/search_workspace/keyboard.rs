@@ -41,6 +41,12 @@ impl KeyboardContext {
             return;
         }
 
+        if event.ctrl_key() && key.eq_ignore_ascii_case("r") {
+            event.prevent_default();
+            self.results.refresh();
+            return;
+        }
+
         if event_target_is_interactive(&event) {
             return;
         }
