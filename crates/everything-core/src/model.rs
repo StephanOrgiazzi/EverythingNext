@@ -90,6 +90,7 @@ pub struct TrashPreparation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TrashOutcome {
     pub deleted: usize,
+    pub deleted_paths: Vec<String>,
     pub failures: Vec<String>,
 }
 

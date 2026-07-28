@@ -1,3 +1,4 @@
+use crate::trash::TrashState;
 use everything_core::{EngineStatus, EverythingEngine, QueryRequest, SearchPage, SelectionRequest};
 use std::sync::{
     atomic::{AtomicU32, Ordering},
@@ -71,6 +72,7 @@ pub(crate) fn begin_search_generation(state: State<'_, SearchState>, request_id:
 #[tauri::command]
 pub(crate) async fn search_everything(
     state: State<'_, SearchState>,
+    trash: State<'_, TrashState>,
     request: QueryRequest,
 ) -> Result<SearchPage, String> {
     state
@@ -82,7 +84,7 @@ pub(crate) async fn search_everything(
 
     let engine = state.engine.clone();
     let latest_generation = state.latest_generation.clone();
-    tauri::async_runtime::spawn_blocking(move || {
+    let mut page = tauri::async_runtime::spawn_blocking(move || {
         if request_is_stale(request.request_id, &latest_generation) {
             return Err("Stale search request".to_string());
         }
@@ -100,7 +102,9 @@ pub(crate) async fn search_everything(
         engine.query(request).map_err(|error| error.to_string())
     })
     .await
-    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())??;
+    trash.filter_deleted(&mut page);
+    Ok(page)
 }
 
 pub(crate) async fn resolve_selection(

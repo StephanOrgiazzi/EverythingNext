@@ -8,8 +8,19 @@ use crate::app::search_workspace::file_actions::FileOperations;
 use crate::app::search_workspace::search::SearchResults;
 use crate::diagnostics;
 use everything_core::IndexSelection;
+use gloo_timers::callback::Interval;
 use leptos::prelude::*;
 use web_sys::{MouseEvent, PointerEvent};
+
+const SEARCH_TIPS: &[&str] = &[
+    "Try ext:pdf to find PDF files.",
+    "Use size:>10mb to find files larger than 10 MB.",
+    "Find files from today or yesterday with date-modified:today | date-modified:yesterday.",
+    "Use | for OR, like report | invoice.",
+    "Prefix a term with ! to exclude it, like !backup.",
+    "Use < > to group terms, like <report | invoice> ext:pdf.",
+    "Put text in quotes to match it literally, like \"project plan\".",
+];
 
 #[derive(Clone, Copy)]
 pub(in crate::app::search_workspace) struct ResultsViewContext {
@@ -58,6 +69,11 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
     let error = files.error;
     let list_ref = viewport.list_ref;
     let drag_selection = DragSelection::new();
+    let tip_index = RwSignal::new(0usize);
+    let tip_interval = Interval::new(6_000, move || {
+        tip_index.update(|index| *index = (*index + 1) % SEARCH_TIPS.len());
+    });
+    tip_interval.forget();
     let on_scroll = move |event: web_sys::Event| {
         viewport.update_from_scroll_event(event);
         menu.close();
@@ -310,14 +326,14 @@ pub(in crate::app::search_workspace) fn ResultsView(context: ResultsViewContext)
                     <EmptyState
                         icon=icons::search()
                         title="Start typing"
-                        message="All Everything search functions and operators are supported."
+                        message=TextProp::from(move || SEARCH_TIPS[tip_index.get()])
                     />
                 </Show>
                 <Show when=move || !query.get().trim().is_empty() && !loading.get() && total.get() == 0 && search_error.get().is_none()>
                     <EmptyState
                         icon=icons::empty()
                         title="No results"
-                        message="Try a less restrictive search or check the syntax."
+                        message=TextProp::from("Try a less restrictive search or check the syntax.")
                     />
                 </Show>
                 <Show when=move || search_error.get().is_some()>
@@ -415,10 +431,19 @@ pub(in crate::app::search_workspace) fn ResultContextMenuView(
 }
 
 #[component]
-fn EmptyState(icon: AnyView, title: &'static str, message: &'static str) -> impl IntoView {
+fn EmptyState(
+    icon: AnyView,
+    title: &'static str,
+    #[prop(default = TextProp::default())] message: TextProp,
+) -> impl IntoView {
+    let message_for_view = Signal::derive(move || message.get());
+
     view! {
         <div class="empty-state pointer-events-none absolute inset-0 grid place-content-center justify-items-center p-10 text-center text-[var(--muted)] [&>.native-icon]:mb-3 [&>.native-icon]:h-[46px] [&>.native-icon]:w-[46px] [&>.native-icon]:text-[42px] [&>.native-icon]:text-[color-mix(in_srgb,var(--muted)_70%,transparent)] [&>h2]:mb-[5px] [&>h2]:text-[17px] [&>h2]:font-semibold [&>h2]:text-[var(--text)] [&>p]:max-w-[430px] [&>p]:leading-[1.5]">
-            {icon}<h2>{title}</h2><p>{message}</p>
+            {icon}<h2>{title}</h2>
+            <Show when=move || !message_for_view.get().is_empty()>
+                <p>{move || message_for_view.get()}</p>
+            </Show>
         </div>
     }
 }

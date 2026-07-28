@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrashReport {
     pub deleted: usize,
+    pub deleted_paths: Vec<String>,
     pub failures: Vec<String>,
 }
 
@@ -90,7 +91,7 @@ fn rename_case_only_via_temporary_sibling(
 }
 
 pub fn trash_paths(paths: &[String]) -> TrashReport {
-    let mut deleted = 0;
+    let mut deleted_paths = Vec::new();
     let mut failures = Vec::new();
     let paths = normalized_operation_paths(paths);
 
@@ -100,12 +101,16 @@ pub fn trash_paths(paths: &[String]) -> TrashReport {
             continue;
         }
         match trash::delete(path) {
-            Ok(()) => deleted += 1,
+            Ok(()) => deleted_paths.push(path.clone()),
             Err(error) => failures.push(format!("{path} : {error}")),
         }
     }
 
-    TrashReport { deleted, failures }
+    TrashReport {
+        deleted: deleted_paths.len(),
+        deleted_paths,
+        failures,
+    }
 }
 
 fn normalized_operation_paths(paths: &[String]) -> Vec<String> {

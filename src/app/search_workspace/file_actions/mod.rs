@@ -5,9 +5,12 @@ pub(super) use dialogs::FileActionDialogs;
 use super::results::ResultSelection;
 use super::search::SearchResults;
 use crate::backend;
-use everything_core::{validate_windows_name, IndexSelection, SearchResult};
+use everything_core::{validate_windows_name, SearchResult};
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+
+const INDEX_SETTLE_DELAY_MS: u32 = 500;
 
 #[derive(Clone)]
 pub(super) struct PendingTrash {
@@ -187,14 +190,13 @@ impl FileOperations {
         let TrashWorkflow::AwaitingConfirmation(pending) = self.trash.get_untracked() else {
             return;
         };
-
         self.trash.set(TrashWorkflow::Deleting(pending.clone()));
         spawn_local(async move {
             match backend::execute_trash(pending.snapshot_id).await {
                 Ok(outcome) => {
                     self.trash.set(TrashWorkflow::Idle);
-                    selection.indices.set(IndexSelection::default());
-                    results.refresh();
+                    results.suppress_deleted(outcome.deleted_paths);
+                    selection.clear();
                     if !outcome.failures.is_empty() {
                         self.error.set(Some(format!(
                             "{} item(s) deleted, {} failure(s):\n{}",
@@ -203,6 +205,8 @@ impl FileOperations {
                             outcome.failures.join("\n")
                         )));
                     }
+                    TimeoutFuture::new(INDEX_SETTLE_DELAY_MS).await;
+                    results.refresh_incrementally();
                 }
                 Err(message) => {
                     self.trash.set(TrashWorkflow::AwaitingConfirmation(pending));

@@ -9,6 +9,8 @@ use crate::app::icons;
 use crate::app::settings::{ExcludedFoldersState, SettingsDialog, ThemeState};
 use crate::{backend, window};
 use gloo_timers::future::TimeoutFuture;
+use leptos::ev;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -184,13 +186,14 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
         menu,
         last_initial: RwSignal::new(None),
     };
-    let on_keydown = move |event| keyboard.handle_keydown(event);
+    let keydown_listener =
+        window_event_listener(ev::keydown, move |event| keyboard.handle_keydown(event));
+    on_cleanup(move || keydown_listener.remove());
 
     view! {
         <main
             class="app-shell grid h-screen grid-rows-[32px_48px_42px_minmax(0,1fr)] bg-[var(--bg)] outline-none"
             tabindex="0"
-            on:keydown=on_keydown
             on:contextmenu=move |event: MouseEvent| {
                 if !target_accepts_text_input(&event) {
                     event.prevent_default();

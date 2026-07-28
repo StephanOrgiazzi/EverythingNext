@@ -54,7 +54,7 @@ pub fn run() {
             app.manage(LaunchState::new(initial_search_query));
             app.manage(SearchState::initialize(app));
             app.manage(ShellState::new());
-            app.manage(TrashState::new());
+            app.manage(TrashState::initialize(app));
             desktop::install_tray(app)?;
 
             if !autostart_launch {

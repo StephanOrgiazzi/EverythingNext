@@ -13,14 +13,24 @@ pub(super) const VIRTUALIZATION_OVERSCAN: u32 = 8;
 
 const PAGE_CACHE_LIMIT: usize = 8;
 
+#[derive(Clone)]
+struct DeletedResultsSuppression {
+    scope: String,
+    paths: HashSet<String>,
+    expected_total: u32,
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct SearchResults {
     pub(super) query: RwSignal<String>,
     excluded_folders: RwSignal<Vec<String>>,
+    active_scope: RwSignal<String>,
+    deleted_results: RwSignal<Option<DeletedResultsSuppression>>,
     generation: RwSignal<u32>,
     refresh_token: RwSignal<u32>,
     preserve_view_on_refresh: RwSignal<bool>,
     pages: RwSignal<BTreeMap<u32, Vec<SearchResult>>>,
+    page_generations: RwSignal<BTreeMap<u32, u32>>,
     loading_pages: RwSignal<HashSet<(u32, u32)>>,
     pub(super) total: RwSignal<u32>,
     pub(super) sort: RwSignal<SortSpec>,
@@ -34,10 +44,13 @@ impl SearchResults {
         Self {
             query: RwSignal::new(String::new()),
             excluded_folders,
+            active_scope: RwSignal::new(String::new()),
+            deleted_results: RwSignal::new(None),
             generation: RwSignal::new(0),
             refresh_token: RwSignal::new(0),
             preserve_view_on_refresh: RwSignal::new(false),
             pages: RwSignal::new(BTreeMap::new()),
+            page_generations: RwSignal::new(BTreeMap::new()),
             loading_pages: RwSignal::new(HashSet::new()),
             total: RwSignal::new(0),
             sort: RwSignal::new(SortSpec::default()),
@@ -50,9 +63,10 @@ impl SearchResults {
     fn begin_generation(self, preserve_view: bool) -> u32 {
         let next_generation = self.generation.get_untracked().saturating_add(1);
         self.generation.set(next_generation);
-        self.pages.set(BTreeMap::new());
         self.loading_pages.set(HashSet::new());
         if !preserve_view {
+            self.pages.set(BTreeMap::new());
+            self.page_generations.set(BTreeMap::new());
             self.total.set(0);
             self.render_latency_ms.set(None);
         }
@@ -62,9 +76,12 @@ impl SearchResults {
 
     fn request_page(self, query: String, page_index: u32, sort: SortSpec, request_generation: u32) {
         let loading_key = (request_generation, page_index);
-        if self
+        let page_is_current = self.page_generations.with_untracked(|generations| {
+            generations.get(&page_index) == Some(&request_generation)
+        }) && self
             .pages
-            .with_untracked(|cache| cache.contains_key(&page_index))
+            .with_untracked(|cache| cache.contains_key(&page_index));
+        if page_is_current
             || self
                 .loading_pages
                 .with_untracked(|set| set.contains(&loading_key))
@@ -79,7 +96,7 @@ impl SearchResults {
 
         spawn_local(async move {
             let request = QueryRequest {
-                query,
+                query: query.clone(),
                 offset: page_index.saturating_mul(PAGE_SIZE),
                 limit: PAGE_SIZE,
                 sort,
@@ -95,12 +112,44 @@ impl SearchResults {
             }
 
             match result {
-                Ok(page) => {
+                Ok(mut page) => {
                     let received_at = js_sys::Date::now();
-                    self.total.set(page.total);
+                    let visible_total = match self.deleted_results.get_untracked() {
+                        Some(suppression) if suppression.scope == query => {
+                            let stale_result_present = page.items.iter().any(|item| {
+                                suppression
+                                    .paths
+                                    .contains(&normalized_path(&item.full_path))
+                            });
+                            if page.total <= suppression.expected_total && !stale_result_present {
+                                self.deleted_results.set(None);
+                                page.total
+                            } else {
+                                page.items.retain(|item| {
+                                    !suppression
+                                        .paths
+                                        .contains(&normalized_path(&item.full_path))
+                                });
+                                page.total.saturating_sub(
+                                    u32::try_from(suppression.paths.len()).unwrap_or(u32::MAX),
+                                )
+                            }
+                        }
+                        _ => page.total,
+                    };
+                    self.total.set(visible_total);
+                    self.page_generations.update(|generations| {
+                        generations.insert(page_index, request_generation);
+                    });
                     self.pages.update(|cache| {
                         cache.insert(page_index, page.items);
                         evict_distant_pages(cache, page_index);
+                    });
+                    let cached_pages = self
+                        .pages
+                        .with_untracked(|cache| cache.keys().copied().collect::<HashSet<_>>());
+                    self.page_generations.update(|generations| {
+                        generations.retain(|page, _| cached_pages.contains(page))
                     });
                     record_next_frame_latency(received_at, self.render_latency_ms);
                     self.error.set(None);
@@ -124,6 +173,35 @@ impl SearchResults {
                 .and_then(|items| items.get(within_page))
                 .cloned()
         })
+    }
+
+    pub fn suppress_deleted(self, deleted_paths: Vec<String>) {
+        if deleted_paths.is_empty() {
+            return;
+        }
+        let scope = self.active_scope.get_untracked();
+        let mut paths = self
+            .deleted_results
+            .get_untracked()
+            .filter(|suppression| suppression.scope == scope)
+            .map(|suppression| suppression.paths)
+            .unwrap_or_default();
+        let previous_count = paths.len();
+        paths.extend(deleted_paths.into_iter().map(|path| normalized_path(&path)));
+        let removed = u32::try_from(paths.len().saturating_sub(previous_count)).unwrap_or(u32::MAX);
+        let expected_total = self.total.get_untracked().saturating_sub(removed);
+
+        self.deleted_results.set(Some(DeletedResultsSuppression {
+            scope,
+            paths: paths.clone(),
+            expected_total,
+        }));
+        self.pages.update(|pages| {
+            for items in pages.values_mut() {
+                items.retain(|item| !paths.contains(&normalized_path(&item.full_path)));
+            }
+        });
+        self.total.set(expected_total);
     }
 
     pub async fn find_by_initial(self, initial: char, start: u32) -> Option<u32> {
@@ -215,6 +293,11 @@ impl SearchResults {
             let excluded_folders = self.excluded_folders.get();
             let current_sort = self.sort.get();
             let _refresh = self.refresh_token.get();
+            let current_scope = compose_query(&current_query, &excluded_folders);
+            if self.active_scope.get_untracked() != current_scope {
+                self.active_scope.set(current_scope.clone());
+                self.deleted_results.set(None);
+            }
             let preserve_view = self.preserve_view_on_refresh.get_untracked();
             self.preserve_view_on_refresh.set(false);
             let next_generation = self.begin_generation(preserve_view);
@@ -238,12 +321,7 @@ impl SearchResults {
                 {
                     return;
                 }
-                self.request_page(
-                    compose_query(&current_query, &excluded_folders),
-                    0,
-                    current_sort,
-                    next_generation,
-                );
+                self.request_page(current_scope, 0, current_sort, next_generation);
             });
         });
 
@@ -311,6 +389,10 @@ fn name_starts_with(item: &SearchResult, initial: char) -> bool {
         .chars()
         .next()
         .is_some_and(|first| first.to_lowercase().eq(initial.to_lowercase()))
+}
+
+fn normalized_path(path: &str) -> String {
+    path.to_lowercase()
 }
 
 #[cfg(test)]

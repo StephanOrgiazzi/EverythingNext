@@ -1,7 +1,10 @@
 use super::FileOperations;
 use crate::app::search_workspace::results::ResultSelection;
 use crate::app::search_workspace::search::SearchResults;
+use crate::diagnostics;
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, KeyboardEvent};
 
@@ -17,6 +20,25 @@ pub(crate) fn FileActionDialogs(
 ) -> impl IntoView {
     let rename_target = files.rename_target;
     let rename_value = files.rename_value;
+    let trash_submit_ref = NodeRef::<leptos::html::Button>::new();
+
+    Effect::new(move |_| {
+        if files.pending_trash().is_none() || files.trash_is_deleting() {
+            return;
+        }
+
+        spawn_local(async move {
+            TimeoutFuture::new(0).await;
+            if let Some(button) = trash_submit_ref.get() {
+                if let Err(error) = button.focus() {
+                    diagnostics::warn_js(
+                        "Unable to focus the recycle-bin confirmation button.",
+                        &error,
+                    );
+                }
+            }
+        });
+    });
 
     view! {
         <Show when=move || rename_target.get().is_some()>
@@ -75,7 +97,7 @@ pub(crate) fn FileActionDialogs(
                         <p>{format!("{} item(s) will be moved to the Recycle Bin.", pending.count)}</p>
                         <div class="modal-actions mt-1 flex justify-end gap-2">
                             <button class="dialog-button h-[34px] min-w-[88px] rounded-[7px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]" disabled=move || files.trash_is_deleting() on:click=move |_| files.cancel_trash()>"Cancel"</button>
-                            <button class="dialog-button danger h-[34px] min-w-[88px] rounded-[7px] border border-[#c42b1c] bg-[#c42b1c] px-[14px] text-white focus-visible:brightness-[1.12]" disabled=move || files.trash_is_deleting() on:click=move |_| files.submit_trash(selection, results)>
+                            <button node_ref=trash_submit_ref class="dialog-button danger h-[34px] min-w-[88px] rounded-[7px] border border-[#c42b1c] bg-[#c42b1c] px-[14px] text-white focus-visible:brightness-[1.12]" disabled=move || files.trash_is_deleting() on:click=move |_| files.submit_trash(selection, results)>
                                 {move || if files.trash_is_deleting() { "Deleting…" } else { "Move to Recycle Bin" }}
                             </button>
                         </div>
