@@ -46,7 +46,8 @@ pub(crate) fn result_count(total: u32) -> String {
         }
         grouped.push(digit);
     }
-    format!("{} result(s)", grouped.chars().rev().collect::<String>())
+    let label = if total == 1 { "result" } else { "results" };
+    format!("{} {label}", grouped.chars().rev().collect::<String>())
 }
 
 #[cfg(test)]
@@ -63,7 +64,12 @@ mod tests {
 
     #[test]
     fn groups_result_counts_by_thousands() {
-        assert_eq!(result_count(0), "0 result(s)");
-        assert_eq!(result_count(12_480), "12 480 result(s)");
+        assert_eq!(result_count(0), "0 results");
+        assert_eq!(result_count(12_480), "12 480 results");
+    }
+
+    #[test]
+    fn uses_singular_for_one_result() {
+        assert_eq!(result_count(1), "1 result");
     }
 }
