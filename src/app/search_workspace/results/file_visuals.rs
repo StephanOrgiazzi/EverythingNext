@@ -247,7 +247,8 @@ pub(crate) fn FileVisual(
     modified_unix: Option<i64>,
     load: bool,
 ) -> impl IntoView {
-    let subscription = load.then(|| {
+    // Folder providers may enumerate their contents and delay every file preview behind them.
+    let subscription = (load && !is_dir).then(|| {
         request_thumbnail(
             path.clone(),
             thumbnail_pixel_size(visual_size),

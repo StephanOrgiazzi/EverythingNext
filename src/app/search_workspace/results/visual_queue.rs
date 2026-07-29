@@ -217,21 +217,11 @@ impl ThumbnailPipeline {
     }
 
     fn workers_to_start(&mut self) -> usize {
-        let available = MAX_CONCURRENT_THUMBNAIL_LOADS.saturating_sub(self.running_workers);
-        if available == 0 {
+        if self.running_workers >= MAX_CONCURRENT_THUMBNAIL_LOADS {
             return 0;
         }
-        let live_pending = self
-            .pending
-            .iter()
-            .filter(|request| {
-                request.resource.state.get() == ResourceState::Pending
-                    && request.resource.subscribers.get() > 0
-            })
-            .count();
-        let workers = available.min(live_pending);
-        self.running_workers = self.running_workers.saturating_add(workers);
-        workers
+        self.running_workers += 1;
+        1
     }
 
     fn next_request(&mut self) -> Option<QueuedThumbnail> {
@@ -390,6 +380,11 @@ mod tests {
             let mut started = 0;
             for index in 0..10 {
                 let (_, workers) = pipeline.subscribe(key(&format!("{index}.png"), 96, 1));
+                if index < MAX_CONCURRENT_THUMBNAIL_LOADS {
+                    assert_eq!(workers, 1);
+                } else {
+                    assert_eq!(workers, 0);
+                }
                 started += workers;
             }
             assert_eq!(started, MAX_CONCURRENT_THUMBNAIL_LOADS);
