@@ -511,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn adds_stable_secondary_sorts_for_federated_results() {
+    fn adds_stable_secondary_sorts() {
         assert_eq!(
             sort_columns(SortColumn::Size),
             &[SortColumn::Size, SortColumn::Name, SortColumn::Path]

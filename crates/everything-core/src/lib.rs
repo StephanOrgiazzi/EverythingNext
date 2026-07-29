@@ -7,10 +7,6 @@ mod windows_name;
 
 #[cfg(windows)]
 use std::cell::RefCell;
-#[cfg(windows)]
-use std::cmp::Ordering;
-#[cfg(windows)]
-use std::collections::VecDeque;
 use std::path::Path;
 #[cfg(windows)]
 use std::path::PathBuf;
@@ -53,8 +49,6 @@ pub enum EngineError {
     UnsupportedPlatform,
     #[error("Invalid selection: {0}")]
     InvalidSelection(String),
-    #[error("No indexed volume is ready yet.")]
-    IndexUnavailable,
 }
 
 impl EngineError {
@@ -71,8 +65,7 @@ impl EngineError {
             | Self::EngineStart(_)
             | Self::UnsupportedEverythingVersion(_)
             | Self::UnsupportedPlatform
-            | Self::InvalidSelection(_)
-            | Self::IndexUnavailable => return false,
+            | Self::InvalidSelection(_) => return false,
         };
         matches!(
             code,
@@ -85,18 +78,13 @@ impl EngineError {
 
 pub struct EverythingEngine {
     #[cfg(windows)]
-    volumes: Vec<VolumeRuntime>,
-    #[cfg(windows)]
-    startup_errors: Vec<String>,
-}
-
-#[cfg(windows)]
-struct VolumeRuntime {
-    root: String,
-    instance_name: String,
     sdk: RefCell<Option<sdk::EverythingSdk>>,
+    #[cfg(windows)]
+    instance_name: String,
+    #[cfg(windows)]
     dll_path: Option<PathBuf>,
-    managed_engine: bundled_engine::ManagedEngine,
+    #[cfg(windows)]
+    managed_engine: Option<bundled_engine::ManagedEngine>,
 }
 
 impl EverythingEngine {
@@ -125,42 +113,21 @@ impl EverythingEngine {
     pub fn status(&self) -> EngineStatus {
         #[cfg(windows)]
         {
-            let statuses = self
-                .volumes
-                .iter()
-                .map(|volume| (volume.root.as_str(), volume.status()))
-                .collect::<Vec<_>>();
-            let ready = statuses
-                .iter()
-                .filter(|(_, status)| status.available)
-                .map(|(root, _)| *root)
-                .collect::<Vec<_>>();
-            let total = self.volumes.len().saturating_add(self.startup_errors.len());
-            let version = statuses
-                .iter()
-                .find_map(|(_, status)| status.version.clone());
-            let message = match ready.len() {
-                0 => statuses
-                    .iter()
-                    .map(|(root, status)| format!("{root} {}", status.message))
-                    .chain(self.startup_errors.iter().cloned())
-                    .collect::<Vec<_>>()
-                    .join(" · "),
-                count if count == total => {
-                    format!("All {total} indexed volumes are ready.")
-                }
-                count => format!(
-                    "{count}/{total} indexed volumes ready: {}",
-                    ready.join(", ")
-                ),
-            };
-            EngineStatus {
-                available: !ready.is_empty(),
-                indexing: ready.len() < total,
-                ready_volumes: u32::try_from(ready.len()).unwrap_or(u32::MAX),
-                total_volumes: u32::try_from(total).unwrap_or(u32::MAX),
-                message,
-                version,
+            match self.ensure_connected() {
+                Ok(()) => self
+                    .sdk
+                    .borrow()
+                    .as_ref()
+                    .expect("connected SDK3 is missing")
+                    .status(),
+                Err(error) => EngineStatus {
+                    available: false,
+                    indexing: true,
+                    ready_volumes: 0,
+                    total_volumes: 1,
+                    message: error.to_string(),
+                    version: None,
+                },
             }
         }
         #[cfg(not(windows))]
@@ -179,7 +146,22 @@ impl EverythingEngine {
     pub fn query(&mut self, _request: QueryRequest) -> Result<SearchPage, EngineError> {
         #[cfg(windows)]
         {
-            self.query_ready_volumes(_request)
+            let first_result = self.query_once(_request.clone());
+            if first_result
+                .as_ref()
+                .is_err_and(EngineError::is_reconnectable)
+            {
+                self.sdk.replace(None);
+                let retry_result = self.query_once(_request);
+                if retry_result
+                    .as_ref()
+                    .is_err_and(EngineError::is_reconnectable)
+                {
+                    self.sdk.replace(None);
+                }
+                return retry_result;
+            }
+            first_result
         }
         #[cfg(not(windows))]
         {
@@ -218,7 +200,7 @@ impl EverythingEngine {
                         ));
                     }
                     let remaining = range.end.saturating_sub(offset).saturating_add(1);
-                    let page = self.query_ready_volumes(QueryRequest {
+                    let page = self.query(QueryRequest {
                         query: _request.query.clone(),
                         offset,
                         limit: remaining.min(256),
@@ -246,148 +228,17 @@ impl EverythingEngine {
 
     #[cfg(windows)]
     fn with_dll_path(dll_path: Option<PathBuf>) -> Result<Self, EngineError> {
-        let targets = bundled_engine::fixed_volumes()?;
-        let mut volumes = Vec::with_capacity(targets.len());
-        let mut startup_errors = Vec::new();
-        for target in targets {
-            match bundled_engine::ManagedEngine::start(&target) {
-                Ok(managed_engine) => volumes.push(VolumeRuntime {
-                    root: target.root,
-                    instance_name: managed_engine.instance_name().to_string(),
-                    sdk: RefCell::new(None),
-                    dll_path: dll_path.clone(),
-                    managed_engine,
-                }),
-                Err(error) => startup_errors.push(format!("{}: {error}", target.root)),
-            }
-        }
-        if volumes.is_empty() {
-            return Err(EngineError::EngineStart(startup_errors.join(" · ")));
-        }
+        let managed_engine = bundled_engine::ManagedEngine::start()?;
+        let instance_name = managed_engine.instance_name().to_string();
         Ok(Self {
-            volumes,
-            startup_errors,
+            sdk: RefCell::new(None),
+            instance_name,
+            dll_path,
+            managed_engine: Some(managed_engine),
         })
     }
 
     #[cfg(windows)]
-    fn query_ready_volumes(&mut self, request: QueryRequest) -> Result<SearchPage, EngineError> {
-        let ready = self
-            .volumes
-            .iter()
-            .enumerate()
-            .filter(|(_, volume)| volume.status().available)
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        if ready.is_empty() {
-            return Err(EngineError::IndexUnavailable);
-        }
-        if let [index] = ready.as_slice() {
-            return self.volumes[*index].query(request);
-        }
-
-        let chunk_size = 256;
-        let mut cursors = Vec::with_capacity(ready.len());
-        let mut total = 0_u64;
-        for volume_index in ready {
-            let page = self.volumes[volume_index].query(QueryRequest {
-                offset: 0,
-                limit: chunk_size,
-                ..request.clone()
-            })?;
-            total = total.saturating_add(u64::from(page.total));
-            if page.total > 0 {
-                let next_offset =
-                    u32::try_from(page.items.len()).expect("a search page always fits in u32");
-                cursors.push(SourceCursor {
-                    volume_index,
-                    next_offset,
-                    total: page.total,
-                    items: page.items.into(),
-                });
-            }
-        }
-
-        let requested_limit = request.limit.clamp(1, 4096);
-        let target = u64::from(request.offset).saturating_add(u64::from(requested_limit));
-        let mut emitted = 0_u64;
-        let mut items = Vec::with_capacity(requested_limit as usize);
-        while emitted < target {
-            let Some(cursor_index) = next_cursor(&cursors, request.sort) else {
-                break;
-            };
-            let item = cursors[cursor_index]
-                .items
-                .pop_front()
-                .expect("the selected source has a front item");
-            if emitted >= u64::from(request.offset) {
-                items.push(item);
-            }
-            emitted = emitted.saturating_add(1);
-
-            if cursors[cursor_index].items.is_empty()
-                && cursors[cursor_index].next_offset < cursors[cursor_index].total
-            {
-                let source_offset = cursors[cursor_index].next_offset;
-                let volume_index = cursors[cursor_index].volume_index;
-                let page = self.volumes[volume_index].query(QueryRequest {
-                    offset: source_offset,
-                    limit: chunk_size,
-                    ..request.clone()
-                })?;
-                if page.items.is_empty() {
-                    cursors[cursor_index].next_offset = cursors[cursor_index].total;
-                } else {
-                    cursors[cursor_index].next_offset = source_offset.saturating_add(
-                        u32::try_from(page.items.len()).expect("a search page always fits in u32"),
-                    );
-                    cursors[cursor_index].items = page.items.into();
-                }
-            }
-        }
-
-        Ok(SearchPage {
-            request_id: request.request_id,
-            offset: request.offset,
-            total: u32::try_from(total).unwrap_or(u32::MAX),
-            items,
-        })
-    }
-}
-
-impl Drop for EverythingEngine {
-    fn drop(&mut self) {
-        #[cfg(windows)]
-        {
-            for volume in &mut self.volumes {
-                volume.sdk.replace(None);
-                volume.managed_engine.stop();
-            }
-        }
-    }
-}
-
-#[cfg(windows)]
-impl VolumeRuntime {
-    fn status(&self) -> EngineStatus {
-        match self.ensure_connected() {
-            Ok(()) => self
-                .sdk
-                .borrow()
-                .as_ref()
-                .expect("connected SDK3 is missing")
-                .status(),
-            Err(error) => EngineStatus {
-                available: false,
-                indexing: true,
-                ready_volumes: 0,
-                total_volumes: 1,
-                message: error.to_string(),
-                version: None,
-            },
-        }
-    }
-
     fn ensure_connected(&self) -> Result<(), EngineError> {
         if self.sdk.borrow().is_some() {
             return Ok(());
@@ -401,24 +252,7 @@ impl VolumeRuntime {
         })
     }
 
-    fn query(&mut self, request: QueryRequest) -> Result<SearchPage, EngineError> {
-        let first_result = self.query_once(request.clone());
-        if let Err(error) = &first_result {
-            if error.is_reconnectable() {
-                self.sdk.replace(None);
-                let retry_result = self.query_once(request);
-                if retry_result
-                    .as_ref()
-                    .is_err_and(EngineError::is_reconnectable)
-                {
-                    self.sdk.replace(None);
-                }
-                return retry_result;
-            }
-        }
-        first_result
-    }
-
+    #[cfg(windows)]
     fn query_once(&self, request: QueryRequest) -> Result<SearchPage, EngineError> {
         self.ensure_connected()?;
         self.sdk
@@ -429,69 +263,16 @@ impl VolumeRuntime {
     }
 }
 
-#[cfg(windows)]
-struct SourceCursor {
-    volume_index: usize,
-    next_offset: u32,
-    total: u32,
-    items: VecDeque<SearchResult>,
-}
-
-#[cfg(windows)]
-fn next_cursor(cursors: &[SourceCursor], sort: SortSpec) -> Option<usize> {
-    cursors
-        .iter()
-        .enumerate()
-        .filter(|(_, cursor)| !cursor.items.is_empty())
-        .min_by(|(_, left), (_, right)| {
-            compare_results(
-                left.items.front().expect("non-empty source has a front"),
-                right.items.front().expect("non-empty source has a front"),
-                sort,
-            )
-        })
-        .map(|(index, _)| index)
-}
-
-#[cfg(windows)]
-fn compare_results(left: &SearchResult, right: &SearchResult, sort: SortSpec) -> Ordering {
-    let order = match sort.column {
-        SortColumn::Name => compare_text(&left.name, &right.name)
-            .then_with(|| compare_text(&left.parent_path, &right.parent_path)),
-        SortColumn::Path => compare_text(&left.parent_path, &right.parent_path)
-            .then_with(|| compare_text(&left.name, &right.name)),
-        SortColumn::Extension => compare_text(extension(&left.name), extension(&right.name))
-            .then_with(|| compare_text(&left.name, &right.name))
-            .then_with(|| compare_text(&left.parent_path, &right.parent_path)),
-        SortColumn::Size => left
-            .size
-            .cmp(&right.size)
-            .then_with(|| compare_text(&left.name, &right.name))
-            .then_with(|| compare_text(&left.parent_path, &right.parent_path)),
-        SortColumn::Modified => left
-            .modified_unix
-            .cmp(&right.modified_unix)
-            .then_with(|| compare_text(&left.name, &right.name))
-            .then_with(|| compare_text(&left.parent_path, &right.parent_path)),
-    };
-    match sort.direction {
-        SortDirection::Ascending => order,
-        SortDirection::Descending => order.reverse(),
+impl Drop for EverythingEngine {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        {
+            self.sdk.replace(None);
+            if let Some(mut managed_engine) = self.managed_engine.take() {
+                managed_engine.stop();
+            }
+        }
     }
-}
-
-#[cfg(windows)]
-fn compare_text(left: &str, right: &str) -> Ordering {
-    left.to_lowercase()
-        .cmp(&right.to_lowercase())
-        .then_with(|| left.cmp(right))
-}
-
-#[cfg(windows)]
-fn extension(name: &str) -> &str {
-    name.rsplit_once('.')
-        .filter(|(stem, extension)| !stem.is_empty() && !extension.is_empty())
-        .map_or("", |(_, extension)| extension)
 }
 
 #[cfg(windows)]
@@ -514,41 +295,8 @@ fn normalize_selection_ranges(mut ranges: Vec<SelectionRange>) -> Vec<SelectionR
 }
 
 #[cfg(all(test, windows))]
-mod federation_tests {
+mod selection_tests {
     use super::*;
-
-    fn result(path: &str) -> SearchResult {
-        let (parent_path, name) = path.rsplit_once('\\').unwrap_or(("", path));
-        SearchResult {
-            id: path.to_string(),
-            name: name.to_string(),
-            parent_path: parent_path.to_string(),
-            full_path: path.to_string(),
-            size: None,
-            modified_unix: None,
-            is_dir: false,
-        }
-    }
-
-    #[test]
-    fn chooses_the_next_result_across_sorted_volumes() {
-        let cursors = vec![
-            SourceCursor {
-                volume_index: 0,
-                next_offset: 1,
-                total: 1,
-                items: VecDeque::from([result(r"C:\beta.txt")]),
-            },
-            SourceCursor {
-                volume_index: 1,
-                next_offset: 1,
-                total: 1,
-                items: VecDeque::from([result(r"D:\Alpha.txt")]),
-            },
-        ];
-
-        assert_eq!(next_cursor(&cursors, SortSpec::default()), Some(1));
-    }
 
     #[test]
     fn normalizes_overlapping_selection_ranges() {
