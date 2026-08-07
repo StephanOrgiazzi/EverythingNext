@@ -24,6 +24,10 @@ pub(super) fn folder_open() -> AnyView {
     native("\u{E838}")
 }
 
+pub(super) fn folder() -> AnyView {
+    native("\u{E8B7}")
+}
+
 pub(super) fn trash() -> AnyView {
     native("\u{E74D}")
 }

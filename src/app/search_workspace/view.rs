@@ -18,6 +18,7 @@ use web_sys::{Element, HtmlInputElement, MouseEvent};
 
 const SIDEBAR_QUERIES: &[&str] = &[
     "*",
+    "folder:",
     "ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt",
     "ext:png;jpg;jpeg;webp;gif;svg;avif",
     "ext:mp4;mkv;avi;mov;webm",
@@ -259,6 +260,7 @@ pub(in crate::app) fn SearchWorkspace() -> impl IntoView {
                     <SidebarItem label="All files" icon=icons::home() item_query="*" query />
                     <div class="sidebar-separator mx-[10px] mb-0.5 mt-[7px] h-px bg-[var(--border-soft)]"></div>
                     <div class="sidebar-section-label px-[10px] pb-[5px] pt-[9px] text-[11px] font-semibold text-[var(--muted)] max-[850px]:hidden">"Types"</div>
+                    <SidebarItem label="Folders" icon=icons::folder() item_query="folder:" query />
                     <SidebarItem label="Documents" icon=icons::document() item_query="ext:pdf;doc;docx;xls;xlsx;ppt;pptx;md;txt" query />
                     <SidebarItem label="Images" icon=icons::image() item_query="ext:png;jpg;jpeg;webp;gif;svg;avif" query />
                     <SidebarItem label="Videos" icon=icons::video() item_query="ext:mp4;mkv;avi;mov;webm" query />
@@ -313,6 +315,7 @@ mod tests {
     use super::{apply_sidebar_query, sidebar_query_is_active};
 
     const AUDIO_QUERY: &str = "ext:mp3;wav;flac;m4a;m4b;aac;ogg;opus;wma;aif;aiff;ape;mid;midi";
+    const FOLDER_QUERY: &str = "folder:";
     const IMAGE_QUERY: &str = "ext:png;jpg;jpeg;webp;gif;svg;avif";
 
     #[test]
@@ -320,6 +323,10 @@ mod tests {
         assert_eq!(
             apply_sidebar_query("annual report", AUDIO_QUERY),
             format!("annual report {AUDIO_QUERY}")
+        );
+        assert_eq!(
+            apply_sidebar_query("annual report", FOLDER_QUERY),
+            format!("annual report {FOLDER_QUERY}")
         );
     }
 
