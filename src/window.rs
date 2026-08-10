@@ -9,13 +9,13 @@ extern "C" {
     #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "window"], js_name = getCurrentWindow)]
     fn get_current_window() -> Result<TauriWindow, JsValue>;
 
-    #[wasm_bindgen(catch, method, js_name = minimize)]
+    #[wasm_bindgen(catch, method, structural, js_name = minimize)]
     async fn minimize_js(this: &TauriWindow) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(catch, method, js_name = toggleMaximize)]
+    #[wasm_bindgen(catch, method, structural, js_name = toggleMaximize)]
     async fn toggle_maximize_js(this: &TauriWindow) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(catch, method, js_name = close)]
+    #[wasm_bindgen(catch, method, structural, js_name = close)]
     async fn close_js(this: &TauriWindow) -> Result<JsValue, JsValue>;
 }
 
