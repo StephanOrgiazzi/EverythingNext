@@ -1,6 +1,5 @@
-use js_sys::{Function, Reflect};
 use leptos::prelude::*;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 
 use super::storage;
 use crate::diagnostics;
@@ -108,15 +107,10 @@ fn preferred_theme() -> Theme {
 fn prefers_dark_color_scheme() -> Result<bool, JsValue> {
     let window =
         web_sys::window().ok_or_else(|| JsValue::from_str("browser window is unavailable"))?;
-    let match_media =
-        Reflect::get(window.as_ref(), &JsValue::from_str("matchMedia"))?.dyn_into::<Function>()?;
-    let media_query = match_media.call1(
-        window.as_ref(),
-        &JsValue::from_str("(prefers-color-scheme: dark)"),
-    )?;
-    Reflect::get(&media_query, &JsValue::from_str("matches"))?
-        .as_bool()
-        .ok_or_else(|| JsValue::from_str("matchMedia returned a non-boolean matches value"))
+    let media_query = window
+        .match_media("(prefers-color-scheme: dark)")?
+        .ok_or_else(|| JsValue::from_str("matchMedia returned no media query list"))?;
+    Ok(media_query.matches())
 }
 
 fn apply_to_document(theme: Theme) {
