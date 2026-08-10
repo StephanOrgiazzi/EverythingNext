@@ -6,40 +6,35 @@ use serde::Serialize;
 use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen(inline_js = r#"
-export async function everythingNextInvoke(command, args) {
-  return await window.__TAURI__.core.invoke(command, args);
-}
-
-export function everythingNextHasTauri() {
-  return typeof window.__TAURI__?.core?.invoke === "function";
-}
-
-export async function everythingNextListenForSearchQuery(callback) {
-  return await window.__TAURI__.event.listen("open-search-query", () => callback());
-}
-
-export async function everythingNextPickFolder() {
-  return await window.__TAURI__.dialog.open({
-    directory: true,
-    multiple: false,
-    title: "Choose a folder to exclude",
-  });
-}
-"#)]
+#[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(catch, js_name = everythingNextInvoke)]
+    #[wasm_bindgen(
+        catch,
+        js_namespace = ["window", "__TAURI__", "core"],
+        js_name = invoke
+    )]
     async fn tauri_invoke(command: &str, args: JsValue) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(js_name = everythingNextHasTauri)]
-    fn has_tauri() -> bool;
+    #[wasm_bindgen(
+        thread_local_v2,
+        js_namespace = ["window", "__TAURI__", "core"],
+        js_name = invoke
+    )]
+    static TAURI_INVOKE: Option<js_sys::Function>;
 
-    #[wasm_bindgen(catch, js_name = everythingNextListenForSearchQuery)]
-    async fn tauri_listen_for_search_query(callback: &js_sys::Function)
-        -> Result<JsValue, JsValue>;
+    #[wasm_bindgen(
+        catch,
+        js_namespace = ["window", "__TAURI__", "event"],
+        js_name = listen
+    )]
+    async fn tauri_listen(event: &str, callback: &js_sys::Function) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(catch, js_name = everythingNextPickFolder)]
-    async fn tauri_pick_folder() -> Result<JsValue, JsValue>;
+    #[wasm_bindgen(
+        catch,
+        js_namespace = ["window", "__TAURI__", "dialog"],
+        js_name = open
+    )]
+    async fn tauri_dialog_open(options: JsValue) -> Result<JsValue, JsValue>;
 }
 
 mod command {
@@ -99,6 +94,17 @@ struct TextArgs<'a> {
     text: &'a str,
 }
 
+#[derive(Serialize)]
+struct FolderDialogOptions<'a> {
+    directory: bool,
+    multiple: bool,
+    title: &'a str,
+}
+
+fn has_tauri() -> bool {
+    TAURI_INVOKE.with(|invoke| invoke.is_some())
+}
+
 async fn invoke<T: DeserializeOwned, A: Serialize>(command: &str, args: &A) -> Result<T, String> {
     let value = to_value(args).map_err(|error| error.to_string())?;
     let response = tauri_invoke(command, value)
@@ -135,7 +141,7 @@ pub async fn listen_for_search_query(callback: &js_sys::Function) -> Result<(), 
     if !has_tauri() {
         return Ok(());
     }
-    tauri_listen_for_search_query(callback)
+    tauri_listen("open-search-query", callback)
         .await
         .map(|_| ())
         .map_err(js_error_to_string)
@@ -215,7 +221,15 @@ pub async fn pick_folder() -> Result<Option<String>, String> {
         return Err("The native folder picker is only available in the desktop app.".into());
     }
 
-    let selection = tauri_pick_folder().await.map_err(js_error_to_string)?;
+    let options = to_value(&FolderDialogOptions {
+        directory: true,
+        multiple: false,
+        title: "Choose a folder to exclude",
+    })
+    .map_err(|error| error.to_string())?;
+    let selection = tauri_dialog_open(options)
+        .await
+        .map_err(js_error_to_string)?;
     if selection.is_null() || selection.is_undefined() {
         return Ok(None);
     }
