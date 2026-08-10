@@ -6,7 +6,11 @@ use crate::diagnostics;
 extern "C" {
     type TauriWindow;
 
-    #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "window"], js_name = getCurrentWindow)]
+    #[wasm_bindgen(
+        catch,
+        js_namespace = ["window", "__TAURI__", "window"],
+        js_name = getCurrentWindow
+    )]
     fn get_current_window() -> Result<TauriWindow, JsValue>;
 
     #[wasm_bindgen(catch, method, structural, js_name = minimize)]
