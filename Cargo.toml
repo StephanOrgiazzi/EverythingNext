@@ -43,6 +43,7 @@ web-sys = { version = "0.3", features = [
   "HtmlImageElement",
   "HtmlInputElement",
   "KeyboardEvent",
+  "MediaQueryList",
   "MouseEvent",
   "PointerEvent",
   "Storage",
