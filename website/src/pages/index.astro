@@ -1,0 +1,660 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const title = "Everything Next — Instant file search for Windows";
+const description =
+  "Find any file on Windows before you finish typing. Everything Next is a fast, open-source search app for Windows 11.";
+const repository = "https://github.com/StephanOrgiazzi/EverythingNext";
+const releases = `${repository}/releases`;
+const base = import.meta.env.BASE_URL;
+---
+
+<Layout title={title} description={description}>
+  <div class="page" id="top">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Everything Next home">
+        <img src={`${base}icon.png`} alt="" width="30" height="30" />
+        <span>Everything Next</span>
+      </a>
+
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#powertoys">PowerToys</a>
+        <a href={repository} target="_blank" rel="noreferrer">GitHub</a>
+      </nav>
+
+      <a class="nav-download" href={releases}>Download</a>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <div class="hero-lockup">
+            <img class="hero-logo" src={`${base}icon.png`} alt="" width="52" height="52" />
+            <span class="hero-product">Everything Next</span>
+          </div>
+          <h1 id="hero-title">Find anything<br /><em>instantly</em></h1>
+          <p class="hero-lead">
+            Find any file before you finish typing.
+          </p>
+
+          <div class="actions">
+            <a class="button button-primary" href={releases}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 3.36 10.18 2.1v9.24H1V3.36Zm10.28-1.41L23 0v11.34H11.28V1.95ZM1 12.53h9.18v9.26L1 20.52v-7.99Zm10.28 0H23V24l-11.72-1.96v-9.51Z" /></svg>
+              Download for Windows
+            </a>
+            <a class="button button-secondary" href={repository} target="_blank" rel="noreferrer">View source</a>
+          </div>
+
+          <dl class="stats" aria-label="Everything Next performance facts">
+            <div>
+              <dt>55<span>ms</span></dt>
+              <dd>to start searching</dd>
+            </div>
+            <div>
+              <dt>10k</dt>
+              <dd>files per bulk action</dd>
+            </div>
+            <div>
+              <dt>0</dt>
+              <dd>cloud uploads</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="theme-grid" aria-label="Everything Next light and dark themes">
+          <figure>
+            <img
+              src={`${base}everything-next-light.png`}
+              alt="Everything Next in light mode"
+              width="1280"
+              height="676"
+              loading="eager"
+              decoding="async"
+            />
+            <figcaption><span></span>Light</figcaption>
+          </figure>
+          <figure class="dark-preview">
+            <img
+              src={`${base}everything-next-preview.png`}
+              alt="Everything Next in dark mode"
+              width="1280"
+              height="676"
+              loading="eager"
+              decoding="async"
+            />
+            <figcaption><span></span>Dark</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="features" id="features" aria-labelledby="features-title">
+        <div class="section-heading">
+          <h2 id="features-title">Fast by default</h2>
+          <p>Everything you need to find and manage files. Nothing you don’t.</p>
+        </div>
+
+        <div class="feature-grid">
+          <article>
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><circle cx="14" cy="14" r="7.5"></circle><path d="m20 20 6 6"></path></svg>
+            </div>
+            <h3>Instant search</h3>
+            <p>Powered by Everything 1.5, so results appear as you type even across large drives.</p>
+          </article>
+
+          <article>
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><path d="M4.5 9.5h8l2.5 3h12.5v13h-23z"></path><path d="M4.5 12.5h23"></path></svg>
+            </div>
+            <h3>File actions built in</h3>
+            <p>Open, reveal, copy, rename or move files to the Recycle Bin from the results.</p>
+          </article>
+
+          <article>
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><path d="M16 3.5 26 7v7.5c0 6.2-4.2 11.5-10 14-5.8-2.5-10-7.8-10-14V7z"></path><path d="m11.5 16 3 3 6-7"></path></svg>
+            </div>
+            <h3>Local and private</h3>
+            <p>Your searches and file metadata stay on your computer. Nothing is uploaded.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="integration" id="powertoys" aria-labelledby="powertoys-title">
+        <div class="integration-copy">
+          <p class="eyebrow">PowerToys Run</p>
+          <h2 id="powertoys-title">Search from PowerToys</h2>
+          <p>Use EverythingPowerToys to bring Everything’s instant file search into PowerToys Run.</p>
+          <a class="text-link" href="https://github.com/lin-ycv/EverythingPowerToys" target="_blank" rel="noreferrer">
+            Explore EverythingPowerToys <span aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <figure class="integration-shot">
+          <img
+            src={`${base}everything-powertoys.png`}
+            alt="PowerToys Run showing EverythingPowerToys file search results for annual report"
+            width="1672"
+            height="941"
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+      </section>
+
+      <section class="download" id="download">
+        <div>
+          <p class="download-label">Free and open source</p>
+          <h2>Start finding</h2>
+          <p>Everything 1.5 and SDK3 are included. Install once and search.</p>
+        </div>
+        <a class="button button-primary" href={releases}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 3.36 10.18 2.1v9.24H1V3.36Zm10.28-1.41L23 0v11.34H11.28V1.95ZM1 12.53h9.18v9.26L1 20.52v-7.99Zm10.28 0H23V24l-11.72-1.96v-9.51Z" /></svg>
+          Download for Windows
+        </a>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="#top">
+        <img src={`${base}icon.png`} alt="" width="24" height="24" />
+        <span>Everything Next</span>
+      </a>
+      <p>Open source · Built with Rust, Tauri &amp; Leptos</p>
+      <a href={repository}>GitHub</a>
+    </footer>
+  </div>
+</Layout>
+
+<style>
+  :global(:root) {
+    color-scheme: light;
+    --ink: #111318;
+    --muted: #626b78;
+    --paper: #f7f9fc;
+    --white: #ffffff;
+    --line: rgba(20, 39, 69, 0.11);
+    --line-strong: rgba(20, 39, 69, 0.17);
+    --blue: #0067c5;
+    --blue-dark: #005a9e;
+    --blue-soft: rgba(0, 103, 197, 0.09);
+    --surface: rgba(255, 255, 255, 0.72);
+    --surface-hover: rgba(255, 255, 255, 0.9);
+    --focus: #005fb8;
+    --mica: rgba(247, 250, 253, 0.76);
+    --shadow-2: 0 2px 5px rgba(31, 54, 78, 0.06);
+    --shadow-8: 0 8px 24px rgba(31, 54, 78, 0.09);
+    --yellow: #ffd645;
+    --yellow-deep: #efbd14;
+  }
+
+  :global(*) { box-sizing: border-box; }
+  :global(html) { scroll-behavior: smooth; background: var(--paper); }
+  :global(body) {
+    margin: 0;
+    background:
+      radial-gradient(circle at 50% 4%, rgba(91, 170, 232, 0.12), transparent 31rem),
+      radial-gradient(circle at 8% 32%, rgba(255, 255, 255, 0.92), transparent 25rem),
+      var(--paper);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  :global(a) { color: inherit; text-decoration: none; }
+  :global(img) { max-width: 100%; }
+  :global(::selection) { background: rgba(20, 108, 255, 0.18); }
+  :global(a:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  .page { overflow: clip; }
+  .topbar,
+  .hero,
+  .integration,
+  .features,
+  .download,
+  footer {
+    width: min(1180px, calc(100% - 40px));
+    margin-inline: auto;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 68px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    background: var(--mica);
+    -webkit-backdrop-filter: blur(20px) saturate(135%);
+    backdrop-filter: blur(20px) saturate(135%);
+    border-bottom: 1px solid rgba(20, 39, 69, 0.07);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .brand img { border-radius: 8px; }
+  nav {
+    margin-left: auto;
+    display: flex;
+    gap: 28px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  nav a {
+    position: relative;
+    padding-block: 8px;
+  }
+  nav a::after {
+    content: "";
+    position: absolute;
+    inset: auto 25% 2px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--blue);
+    transform: scaleX(0);
+  }
+  nav a:hover::after,
+  nav a:focus-visible::after { transform: scaleX(1); }
+  nav a:hover,
+  footer a:hover { color: var(--blue); }
+  .nav-download {
+    padding: 9px 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), var(--surface));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 1px 2px rgba(22, 35, 54, 0.05);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .nav-download:hover { background: var(--surface-hover); border-color: rgba(0, 103, 197, 0.25); }
+
+  .hero {
+    padding: clamp(78px, 9vw, 120px) 0 120px;
+    text-align: center;
+  }
+  .hero-copy {
+    display: grid;
+    justify-items: center;
+  }
+  .hero-lockup {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
+    width: max-content;
+    margin-bottom: 28px;
+  }
+  .hero-logo {
+    display: block;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46), 0 8px 20px rgba(70, 84, 104, 0.13);
+  }
+  .hero-product {
+    color: var(--ink);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+  }
+  h1,
+  h2 {
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  h1 {
+    margin: 0 0 24px;
+    max-width: 14ch;
+    font-size: clamp(52px, 7.2vw, 92px);
+    line-height: 0.96;
+    letter-spacing: -0.055em;
+    font-weight: 680;
+    text-wrap: balance;
+  }
+  h1 em { color: var(--blue); font-style: normal; }
+  .hero-lead {
+    max-width: 580px;
+    margin: 0 0 30px;
+    color: var(--muted);
+    font-size: clamp(17px, 1.8vw, 20px);
+    line-height: 1.55;
+    letter-spacing: -0.015em;
+  }
+  .actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .button {
+    min-height: 48px;
+    padding: 0 21px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .button::before {
+    content: "";
+    position: absolute;
+    inset: 0 1px auto;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.36);
+    pointer-events: none;
+  }
+  .button svg { width: 17px; height: 17px; fill: currentColor; }
+  .button-primary {
+    color: white;
+    background: linear-gradient(180deg, #0878d1 0%, var(--blue) 62%, var(--blue-dark) 100%);
+    border: 1px solid var(--blue-dark);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(20, 108, 255, 0.2);
+  }
+  .button-primary:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 10px 24px rgba(20, 108, 255, 0.24); }
+  .button-secondary {
+    color: #28313d;
+    border: 1px solid var(--line-strong);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96), 0 1px 2px rgba(22, 35, 54, 0.04);
+  }
+  .button-secondary:hover { background: var(--surface-hover); border-color: rgba(0, 103, 197, 0.22); }
+
+  .stats {
+    width: min(620px, 100%);
+    margin: 52px 0 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-block: 1px solid var(--line);
+  }
+  .stats > div { padding: 23px 14px; }
+  .stats > div:hover { background: rgba(255, 255, 255, 0.46); }
+  .stats > div + div { border-left: 1px solid var(--line); }
+  .stats dt {
+    font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    font-size: clamp(30px, 3.5vw, 44px);
+    line-height: 1;
+    font-weight: 720;
+    letter-spacing: -0.055em;
+    font-variant-numeric: tabular-nums;
+  }
+  .stats dt span {
+    margin-left: 2px;
+    color: var(--blue);
+    font-size: 0.48em;
+    letter-spacing: -0.02em;
+  }
+  .stats dd {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .theme-grid {
+    margin-top: 78px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .theme-grid figure {
+    margin: 0;
+    padding: 12px 12px 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.76);
+    box-shadow: 0 24px 58px rgba(22, 35, 54, 0.11), 0 4px 14px rgba(22, 35, 54, 0.05);
+  }
+  .theme-grid .dark-preview {
+    border-color: #25282d;
+    background: #181a1d;
+    box-shadow: 0 26px 64px rgba(13, 19, 28, 0.18);
+  }
+  .theme-grid img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .dark-preview img { border-color: rgba(255, 255, 255, 0.08); }
+  .theme-grid figcaption {
+    padding: 14px 4px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .theme-grid figcaption span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--yellow);
+  }
+  .dark-preview figcaption { color: rgba(255, 255, 255, 0.68); }
+  .dark-preview figcaption span { background: #35a7ff; }
+
+  .integration {
+    padding: 106px 0 116px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+    align-items: center;
+    gap: clamp(48px, 8vw, 118px);
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 68px;
+  }
+  .integration-copy { max-width: 420px; }
+  .eyebrow {
+    margin: 0 0 14px;
+    color: var(--blue);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .integration h2 {
+    margin-bottom: 18px;
+    font-size: clamp(38px, 4.8vw, 58px);
+  }
+  .integration-copy > p:not(.eyebrow) {
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  .text-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 26px;
+    color: var(--blue);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .text-link span { font-size: 18px; line-height: 1; }
+  .integration-shot {
+    margin: 0;
+    min-width: 0;
+  }
+  .integration-shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 20px 46px rgba(22, 35, 54, 0.13), 0 3px 10px rgba(22, 35, 54, 0.05);
+  }
+
+  .features {
+    padding: 120px 0 132px;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 68px;
+  }
+  .section-heading {
+    max-width: 620px;
+    margin: 0 auto 56px;
+    text-align: center;
+  }
+  h2 {
+    margin: 0 0 16px;
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-weight: 680;
+  }
+  .section-heading p,
+  .download p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .feature-grid article {
+    padding: 32px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(250, 252, 255, 0.68));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 1px 2px rgba(22, 35, 54, 0.03);
+  }
+  .feature-icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    color: var(--blue);
+    border: 1px solid rgba(0, 103, 197, 0.1);
+    border-radius: 7px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.88), var(--blue-soft));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94), var(--shadow-2);
+  }
+  .feature-icon svg {
+    width: 30px;
+    height: 30px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.5;
+  }
+  h3 {
+    margin: 22px 0 10px;
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+  }
+  .feature-grid p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .download {
+    padding: clamp(52px, 7vw, 84px) 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 44px;
+    border-block: 1px solid var(--line);
+  }
+  .download-label {
+    margin-bottom: 12px !important;
+    font-size: 11px !important;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .download-label::before {
+    content: "";
+    width: 3px;
+    height: 13px;
+    border-radius: 2px;
+    background: var(--blue);
+    box-shadow: 0 0 0 1px rgba(0, 103, 197, 0.08);
+  }
+  .download h2 { margin-bottom: 12px; }
+  footer {
+    min-height: 108px;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  footer p { margin: 0 auto; }
+
+  @media (max-width: 800px) {
+    nav { display: none; }
+    .nav-download { margin-left: auto; }
+    .hero { padding-top: 68px; padding-bottom: 90px; }
+    .theme-grid { grid-template-columns: 1fr; margin-top: 62px; }
+    .integration { grid-template-columns: 1fr; gap: 44px; padding: 86px 0 94px; }
+    .integration-copy { max-width: 620px; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .features { padding: 92px 0 100px; }
+    .download { flex-direction: column; align-items: flex-start; }
+  }
+
+  @media (max-width: 520px) {
+    .topbar,
+    .hero,
+    .integration,
+    .features,
+    .download,
+    footer { width: calc(100% - 28px); }
+    .brand { font-size: 13px; }
+    h1 { font-size: clamp(48px, 14vw, 66px); }
+    .hero-lead { font-size: 16px; }
+    .actions { width: 100%; }
+    .button { min-width: 210px; }
+    .stats > div { padding-inline: 7px; }
+    .stats dd { font-size: 10px; }
+    .feature-grid article { padding: 26px; }
+    .download { padding: 52px 0; }
+    .download .button { align-self: center; }
+    footer { padding: 30px 0; flex-direction: column; text-align: center; }
+    footer p { margin: 0; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-copy { animation: appear 0.55s ease-out both; }
+    .theme-grid { animation: rise 0.7s 0.08s ease-out both; }
+    @keyframes appear { from { opacity: 0; transform: translateY(10px); } }
+    @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(*) { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .topbar { background: rgba(247, 249, 252, 0.96); }
+  }
+</style>

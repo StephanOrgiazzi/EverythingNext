@@ -5,6 +5,12 @@
 <h1 align="center">Everything Next</h1>
 
 <p align="center">
+  <a href="https://stephanorgiazzi.github.io/EverythingNext/">
+    <img src="https://img.shields.io/badge/Website-Everything_Next-0067C5?style=for-the-badge&logo=githubpages&logoColor=white" alt="Everything Next website" />
+  </a>
+</p>
+
+<p align="center">
   <strong>Find any file on Windows before you finish typing.</strong>
 </p>
 
@@ -37,6 +43,12 @@
 <p align="center">
   <img src="./assets/everything-next-preview.png" width="49%" alt="Everything Next showing file search results in dark mode">
   <img src="./assets/everything-next-light.png" width="49%" alt="Everything Next showing file search results in light mode">
+</p>
+
+<p align="center">
+  <a href="https://stephanorgiazzi.github.io/EverythingNext/"><strong>Everything Next Website</strong></a>
+  <br />
+  <sub>stephanorgiazzi.github.io/EverythingNext</sub>
 </p>
 
 Everything Next is an open-source desktop client for [Everything](https://www.voidtools.com/) 1.5. It keeps Everything's native query syntax and fast index, then adds the file actions, keyboard controls, views, and Windows 11 native-like design.

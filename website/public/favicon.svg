@@ -1,0 +1,18 @@
+<!-- Source artwork for the tracked application icon assets. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Everything Next">
+  <defs>
+    <linearGradient id="background" x1="34" y1="30" x2="222" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE079" />
+      <stop offset="0.52" stop-color="#FFD04B" />
+      <stop offset="1" stop-color="#F7B80B" />
+    </linearGradient>
+    <linearGradient id="magnifier" x1="60" y1="48" x2="194" y2="188" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#179BE4" />
+      <stop offset="1" stop-color="#0067B9" />
+    </linearGradient>
+  </defs>
+  <rect x="14" y="14" width="228" height="228" rx="56" fill="url(#background)" />
+  <rect x="15" y="15" width="226" height="226" rx="55" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2" />
+  <circle cx="108" cy="98" r="43" fill="none" stroke="url(#magnifier)" stroke-width="26" />
+  <path d="M138.4 128.4 184 174" fill="none" stroke="url(#magnifier)" stroke-width="26" stroke-linecap="round" />
+</svg>
