@@ -1,0 +1,14 @@
+[package]
+name = "everything-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+everything-core = { path = "../everything-core" }
+libloading = "0.8"
+thiserror = "2"

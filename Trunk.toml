@@ -1,0 +1,16 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[watch]
+ignore = ["./src-tauri", "./crates"]
+
+[serve]
+port = 1420
+open = false
+ws_protocol = "ws"
+
+[[hooks]]
+stage = "pre_build"
+command = "powershell"
+command_arguments = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/tailwind.ps1", "-Minify"]

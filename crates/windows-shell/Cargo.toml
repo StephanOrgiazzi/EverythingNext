@@ -1,0 +1,28 @@
+[package]
+name = "windows-shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+base64 = "0.22"
+everything-core = { path = "../everything-core" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+open = "5"
+parking_lot = "0.12"
+thiserror = "2"
+trash = "5"
+clipboard-win = "5.4.1"
+windows = { version = "0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_UI_Controls",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
