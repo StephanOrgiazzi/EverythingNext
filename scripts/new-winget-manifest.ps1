@@ -12,16 +12,16 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $packageIdentifier = 'StephanOrgiazzi.EverythingNext'
-$installerName = "Everything Next_${Version}_x64-setup.exe"
-$escapedInstallerName = [System.Uri]::EscapeDataString($installerName)
-$installerUrl = "https://github.com/StephanOrgiazzi/EverythingNext/releases/download/v$Version/$escapedInstallerName"
+$localInstallerName = "Everything Next_${Version}_x64-setup.exe"
+$releaseAssetName = "Everything.Next_${Version}_x64-setup.exe"
+$installerUrl = "https://github.com/StephanOrgiazzi/EverythingNext/releases/download/v$Version/$releaseAssetName"
 $temporaryInstaller = $null
 
 try {
   if ($InstallerPath) {
     $resolvedInstaller = (Resolve-Path -LiteralPath $InstallerPath).Path
   } else {
-    $temporaryInstaller = Join-Path ([System.IO.Path]::GetTempPath()) $installerName
+    $temporaryInstaller = Join-Path ([System.IO.Path]::GetTempPath()) $localInstallerName
     Invoke-WebRequest -Uri $installerUrl -OutFile $temporaryInstaller
     $resolvedInstaller = $temporaryInstaller
   }
