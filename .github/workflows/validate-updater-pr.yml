@@ -22,9 +22,11 @@ jobs:
         with:
           workspaces: ". -> target"
 
-      - name: Prepare dependencies
+      - name: Prepare bundled Everything dependencies
         shell: pwsh
-        run: .\scripts\setup.ps1 -SkipFormat
+        run: |
+          .\scripts\install-everything-sdk.ps1
+          .\scripts\install-everything-runtime.ps1
 
       - name: Run checks
         shell: pwsh
