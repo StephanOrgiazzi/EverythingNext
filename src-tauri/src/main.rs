@@ -5,6 +5,7 @@ mod desktop;
 mod search;
 mod shell_commands;
 mod trash;
+mod updates;
 
 use desktop::{take_pending_search_query, LaunchState};
 use search::{begin_search_generation, engine_status, search_everything, SearchState};
@@ -38,6 +39,7 @@ fn main() -> tauri::Result<()> {
 
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::all().difference(StateFlags::VISIBLE))
@@ -57,6 +59,7 @@ fn main() -> tauri::Result<()> {
 
             if !autostart_launch {
                 desktop::show_main_window(app.handle());
+                updates::check_on_start(app.handle().clone());
             }
             Ok(())
         })
