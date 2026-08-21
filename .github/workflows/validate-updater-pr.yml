@@ -1,0 +1,31 @@
+name: Validate updater PR
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  check-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Prepare dependencies
+        shell: pwsh
+        run: .\scripts\setup.ps1 -SkipFormat
+
+      - name: Run checks
+        shell: pwsh
+        run: .\scripts\check.ps1
