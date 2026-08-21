@@ -31,10 +31,47 @@ The public key is compiled into release builds through `TAURI_UPDATER_PUBLIC_KEY
 2. Run `./scripts/check.ps1`.
 3. Run the **Release** GitHub Actions workflow from `master`, or push the matching `v<version>` tag from a commit on `master`.
 
-The workflow builds the Windows NSIS installer, signs the updater artifact with the Tauri private key, creates the GitHub Release, uploads the `.sig` file, and generates `latest.json` for the updater endpoint.
+The workflow builds the Windows NSIS installer, signs the updater artifact with the Tauri private key, creates the GitHub Release, uploads the `.sig` file, generates `latest.json` for the updater endpoint, and uploads a `winget-manifests` workflow artifact containing the WinGet submission files and the exact installer hash.
 
 Installed release builds query:
 
 `https://github.com/StephanOrgiazzi/EverythingNext/releases/latest/download/latest.json`
 
 When a newer version is available, Everything Next offers **Install** or **Later**. The updater uses the NSIS installer; on Windows the app exits before installation, and the existing installer hooks stop/recreate the private Everything service during the upgrade.
+
+## First WinGet submission
+
+The package identifier is `StephanOrgiazzi.EverythingNext`. The first submission must be made after the GitHub Release exists because WinGet requires a public, version-specific installer URL and its exact SHA-256 hash.
+
+1. Download the `winget-manifests` artifact from the successful release workflow.
+2. Extract it so the local directory contains `manifests\s\StephanOrgiazzi\EverythingNext\<version>`.
+3. In an elevated Windows Sandbox, enable local manifests and validate the generated version directory:
+
+   ```powershell
+   winget settings --enable LocalManifestFiles
+   winget validate --manifest .\manifests\s\StephanOrgiazzi\EverythingNext\<version>
+   winget install --manifest .\manifests\s\StephanOrgiazzi\EverythingNext\<version> --silent
+   winget uninstall --name "Everything Next" --silent
+   ```
+
+4. Submit those three files to `microsoft/winget-pkgs`, preserving the generated directory structure. `wingetcreate` can submit the initial manifest interactively if preferred.
+
+The manifest uses `InstallerType: nullsoft`, `Scope: machine`, `UpgradeBehavior: install`, and `RequireExplicitUpgrade: true`. The NSIS installer requests its own UAC elevation, so its elevation behavior is `elevatesSelf`, not `elevationRequired`.
+
+For a local regeneration after the release has been published:
+
+```powershell
+.\scripts\new-winget-manifest.ps1 -Version <version>
+```
+
+After the initial package version is accepted, subsequent releases can be submitted non-interactively with:
+
+```powershell
+wingetcreate update StephanOrgiazzi.EverythingNext `
+  --version <version> `
+  --urls "https://github.com/StephanOrgiazzi/EverythingNext/releases/download/v<version>/Everything%20Next_<version>_x64-setup.exe|x64|machine" `
+  --submit `
+  --no-open
+```
+
+Use the `WINGET_CREATE_GITHUB_TOKEN` environment variable for the token instead of placing it on the command line. Before enabling automatic submissions, test a real `0.9.1` to `0.9.2` upgrade in Windows Sandbox and confirm that the private service is replaced and removed cleanly.

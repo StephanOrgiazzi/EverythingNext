@@ -77,6 +77,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+          NO_COLOR: "true"
         with:
           tagName: v__VERSION__
           releaseName: "Everything Next v__VERSION__"
@@ -87,3 +88,20 @@ jobs:
           updaterJsonPreferNsis: true
           uploadUpdaterSignatures: true
           args: --config src-tauri/tauri.release.conf.json
+
+      - name: Generate WinGet submission manifests
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri\tauri.conf.json -Raw | ConvertFrom-Json).version
+          $installer = "target\release\bundle\nsis\Everything Next_${version}_x64-setup.exe"
+          & .\scripts\new-winget-manifest.ps1 `
+            -Version $version `
+            -InstallerPath $installer `
+            -OutputDirectory "${{ runner.temp }}\winget"
+
+      - name: Upload WinGet submission manifests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: winget-manifests
+          path: ${{ runner.temp }}\winget\manifests
+          if-no-files-found: error

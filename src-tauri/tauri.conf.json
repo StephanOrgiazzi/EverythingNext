@@ -2,12 +2,12 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Everything Next",
   "mainBinaryName": "EverythingNext",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "identifier": "com.everythingnext.app",
   "build": {
-    "beforeDevCommand": "trunk serve",
+    "beforeDevCommand": "trunk serve --config ../Trunk.toml",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build --release --locked",
+    "beforeBuildCommand": "trunk build --release --locked --config ../Trunk.toml",
     "frontendDist": "../dist"
   },
   "app": {
