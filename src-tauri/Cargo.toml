@@ -14,6 +14,7 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 everything-core = { path = "../crates/everything-core" }
 everything-engine = { path = "../crates/everything-engine" }
+serde_json = "1"
 tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2.4.3"

@@ -1183,6 +1183,7 @@ version = "0.9.1"
 dependencies = [
  "everything-core",
  "everything-engine",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
