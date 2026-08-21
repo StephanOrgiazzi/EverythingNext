@@ -69,7 +69,7 @@ After the initial package version is accepted, subsequent releases can be submit
 ```powershell
 wingetcreate update StephanOrgiazzi.EverythingNext `
   --version <version> `
-  --urls "https://github.com/StephanOrgiazzi/EverythingNext/releases/download/v<version>/Everything%20Next_<version>_x64-setup.exe|x64|machine" `
+  --urls "https://github.com/StephanOrgiazzi/EverythingNext/releases/download/v<version>/Everything.Next_<version>_x64-setup.exe|x64|machine" `
   --submit `
   --no-open
 ```
