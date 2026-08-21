@@ -17,6 +17,7 @@ everything-engine = { path = "../crates/everything-engine" }
 tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2.4.3"
+tauri-plugin-updater = "2.10.1"
 tauri-plugin-window-state = "2.4.1"
 tokio = { version = "1", features = ["sync"] }
 windows-shell = { path = "../crates/windows-shell" }
