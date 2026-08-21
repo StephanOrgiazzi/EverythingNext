@@ -34,6 +34,7 @@ fn main() -> tauri::Result<()> {
             }
             if !desktop::string_args_include_autostart(&args) {
                 desktop::show_main_window(app);
+                updates::check_on_user_launch(app.clone());
             }
         }));
 
@@ -59,7 +60,7 @@ fn main() -> tauri::Result<()> {
 
             if !autostart_launch {
                 desktop::show_main_window(app.handle());
-                updates::check_on_start(app.handle().clone());
+                updates::check_on_user_launch(app.handle().clone());
             }
             Ok(())
         })

@@ -1,14 +1,16 @@
 #![cfg(windows)]
 
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 
 const UPDATE_ENDPOINT: &str =
     "https://github.com/StephanOrgiazzi/EverythingNext/releases/latest/download/latest.json";
 const UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
+static UPDATE_CHECK_STARTED: AtomicBool = AtomicBool::new(false);
 
-pub fn check_on_start(app: tauri::AppHandle) {
-    if UPDATER_PUBLIC_KEY.is_none() {
+pub fn check_on_user_launch(app: tauri::AppHandle) {
+    if UPDATER_PUBLIC_KEY.is_none() || UPDATE_CHECK_STARTED.swap(true, Ordering::AcqRel) {
         return;
     }
 
@@ -54,6 +56,17 @@ async fn check_and_offer_update(
         return Ok(());
     }
 
-    update.download_and_install(|_, _| {}, || {}).await?;
+    if let Err(error) = update.download_and_install(|_, _| {}, || {}).await {
+        eprintln!("Unable to install the Everything Next update: {error}");
+        app.dialog()
+            .message(format!(
+                "The update could not be installed. Please try again later.\n\n{error}"
+            ))
+            .title("Everything Next update failed")
+            .kind(MessageDialogKind::Error)
+            .buttons(MessageDialogButtons::Ok)
+            .blocking_show();
+    }
+
     Ok(())
 }
