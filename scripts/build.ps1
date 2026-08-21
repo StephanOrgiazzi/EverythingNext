@@ -7,6 +7,10 @@ $PSNativeCommandUseErrorActionPreference = $true
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $projectRoot
 
+if ($env:NO_COLOR) {
+  $env:NO_COLOR = "true"
+}
+
 if (-not (Test-Path "src-tauri\Everything3_x64.dll")) {
   & "$PSScriptRoot\install-everything-sdk.ps1"
 }

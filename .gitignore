@@ -10,6 +10,9 @@
 /.tools/
 /assets/tailwind.generated.css
 
+# Generated release artifacts
+/artifacts/
+
 # Tauri-generated schemas
 /src-tauri/gen/
 

@@ -2,6 +2,10 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $projectRoot
 
+if ($env:NO_COLOR) {
+  $env:NO_COLOR = "true"
+}
+
 function Test-ExplicitFile([string]$VariableName) {
   $value = [Environment]::GetEnvironmentVariable($VariableName)
   return $value -and (Test-Path $value -PathType Leaf)
