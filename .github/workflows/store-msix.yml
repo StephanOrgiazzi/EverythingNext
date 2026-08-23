@@ -1,0 +1,60 @@
+name: Microsoft Store MSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version from src-tauri/tauri.conf.json (for example 0.9.1)"
+        required: true
+        type: string
+      without_service:
+        description: "Omit the packaged Everything Windows service"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-msix:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Prepare toolchain and bundled Everything runtime
+        shell: pwsh
+        run: .\scripts\setup.ps1 -SkipFormat
+
+      - name: Build unsigned Store MSIX package
+        shell: pwsh
+        env:
+          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          $arguments = @(
+            '-Version', '${{ inputs.version }}'
+          )
+          if ('${{ inputs.without_service }}' -eq 'true') {
+            $arguments += '-WithoutService'
+          }
+          & .\scripts\build-msix.ps1 @arguments
+
+      - name: Upload MSIX package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: everything-next-msix-${{ inputs.version }}
+          path: artifacts/msix/*.msix
+          if-no-files-found: error
