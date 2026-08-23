@@ -1,6 +1,17 @@
 name: Microsoft Store MSIX
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/store-msix.yml"
+      - "packaging/msix/**"
+      - "scripts/build-msix.ps1"
+      - "src-tauri/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "Trunk.toml"
+      - "assets/icon.png"
   workflow_dispatch:
     inputs:
       version:
@@ -40,19 +51,23 @@ jobs:
       - name: Build unsigned Store MSIX package
         shell: pwsh
         env:
-          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
-          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
-          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+          # Pull requests use harmless placeholders to validate the package layout.
+          # Manual Store builds use the exact values copied from Partner Center.
+          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME || 'EverythingNext' }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER || 'CN=Everything Next' }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'Stephan Orgiazzi' }}
         run: |
-          $arguments = @(
-            '-Version', '${{ inputs.version }}'
-          )
+          $arguments = @()
+          if ('${{ inputs.version }}') {
+            $arguments += @('-Version', '${{ inputs.version }}')
+          }
           if ('${{ inputs.without_service }}' -eq 'true') {
             $arguments += '-WithoutService'
           }
           & .\scripts\build-msix.ps1 @arguments
 
       - name: Upload MSIX package
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: everything-next-msix-${{ inputs.version }}
