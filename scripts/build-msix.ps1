@@ -41,18 +41,31 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 $packageVersion = "$Version.0"
 
 if (-not $SkipBuild) {
-  # A Store package is updated by Microsoft Store, not by the Tauri updater.
-  # Do not accidentally compile a Store build with the private updater key.
+  # Store packages use the manifest startup task and Microsoft Store updates.
+  # Do not compile the registry autostart path or private updater signing material into this build.
+  $savedStoreBuild = $env:TAURI_STORE_BUILD
   $savedUpdaterKey = $env:TAURI_UPDATER_PUBLIC_KEY
   $savedSigningKey = $env:TAURI_SIGNING_PRIVATE_KEY
   try {
+    $env:TAURI_STORE_BUILD = '1'
     Remove-Item Env:TAURI_UPDATER_PUBLIC_KEY -ErrorAction SilentlyContinue
     Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+
     & cargo tauri build --no-bundle --config src-tauri/tauri.release.conf.json
     if ($LASTEXITCODE -ne 0) {
       throw "Tauri build failed with exit code $LASTEXITCODE."
     }
+
+    & cargo build --release -p everything-next --bin everything-next-autostart
+    if ($LASTEXITCODE -ne 0) {
+      throw "Autostart launcher build failed with exit code $LASTEXITCODE."
+    }
   } finally {
+    if ($null -eq $savedStoreBuild) {
+      Remove-Item Env:TAURI_STORE_BUILD -ErrorAction SilentlyContinue
+    } else {
+      $env:TAURI_STORE_BUILD = $savedStoreBuild
+    }
     if ($null -eq $savedUpdaterKey) {
       Remove-Item Env:TAURI_UPDATER_PUBLIC_KEY -ErrorAction SilentlyContinue
     } else {
@@ -85,12 +98,13 @@ if (-not $makeAppx) {
 }
 
 $binary = Join-Path $projectRoot 'target\release\EverythingNext.exe'
+$autostartLauncher = Join-Path $projectRoot 'target\release\everything-next-autostart.exe'
 $sdk = Join-Path $projectRoot 'src-tauri\Everything3_x64.dll'
 $engine = Join-Path $projectRoot 'src-tauri\engine\Everything.exe'
 $license = Join-Path $projectRoot 'src-tauri\engine\THIRD-PARTY-LICENSES.txt'
 $manifestTemplate = Join-Path $projectRoot 'packaging\msix\AppxManifest.xml.in'
 
-foreach ($requiredFile in @($binary, $sdk, $engine, $license, $manifestTemplate)) {
+foreach ($requiredFile in @($binary, $autostartLauncher, $sdk, $engine, $license, $manifestTemplate)) {
   if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
     throw "Required MSIX input is missing: $requiredFile"
   }
@@ -112,6 +126,7 @@ try {
   New-Item -ItemType Directory -Path $stagingEngine, $stagingAssets -Force | Out-Null
 
   Copy-Item -LiteralPath $binary -Destination (Join-Path $stagingRoot 'EverythingNext.exe')
+  Copy-Item -LiteralPath $autostartLauncher -Destination (Join-Path $stagingRoot 'EverythingNextAutostart.exe')
   Copy-Item -LiteralPath $sdk -Destination (Join-Path $stagingRoot 'Everything3_x64.dll')
   Copy-Item -LiteralPath $engine -Destination (Join-Path $stagingEngine 'Everything.exe')
   Copy-Item -LiteralPath $license -Destination (Join-Path $stagingEngine 'THIRD-PARTY-LICENSES.txt')
@@ -146,7 +161,6 @@ try {
   $serviceCapabilities = ''
   if (-not $WithoutService) {
     $serviceExtension = @'
-      <Extensions>
         <desktop6:Extension
           Category="windows.service"
           Executable="engine\Everything.exe"
@@ -157,7 +171,6 @@ try {
             StartAccount="localSystem"
             Arguments="-svc -instance EverythingNext -svc-pipe-name &quot;\\.\PIPE\Everything Service (EverythingNext)&quot;" />
         </desktop6:Extension>
-      </Extensions>
 '@
     $serviceCapabilities = @'
     <rescap:Capability Name="packagedServices" />
