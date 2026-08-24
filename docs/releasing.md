@@ -39,6 +39,24 @@ Installed release builds query:
 
 When a newer version is available, Everything Next offers **Install** or **Later**. The updater uses the NSIS installer; on Windows the app exits before installation, and the existing installer hooks stop/recreate the private Everything service during the upgrade.
 
+## Microsoft Store MSIX package
+
+The repository also contains a separate MSIX packaging workflow for the Microsoft Store. It does not change the GitHub/NSIS release channel.
+
+Microsoft re-signs MSIX packages submitted through the Store, so this workflow intentionally produces an unsigned `.msix` artifact. No Authenticode certificate is needed for that Store package.
+
+Before running `.github/workflows/store-msix.yml`, reserve the app in Partner Center and create these repository variables with the exact values supplied by Microsoft:
+
+- `MSIX_IDENTITY_NAME`
+- `MSIX_PUBLISHER`
+- `MSIX_PUBLISHER_DISPLAY_NAME`
+
+Run the workflow from the release tag and enter the same three-part version as `src-tauri/tauri.conf.json`. Download the resulting artifact and upload the `.msix` package to the Store submission.
+
+The default package declares the private `Everything Service (EverythingNext)` as a packaged LocalSystem service. Microsoft may require approval for the `packagedServices` and `localSystemServices` restricted capabilities. If that capability request is not accepted, rerun the workflow with `without_service` enabled; the application will start its own bundled Everything process when it is launched, but it will not maintain the index while the application is closed.
+
+The Store build does not receive the Tauri updater signing key. Store updates are managed by Microsoft; GitHub releases continue to use the existing Tauri updater and NSIS hooks.
+
 ## First WinGet submission
 
 The package identifier is `StephanOrgiazzi.EverythingNext`. The first submission must be made after the GitHub Release exists because WinGet requires a public, version-specific installer URL and its exact SHA-256 hash.
