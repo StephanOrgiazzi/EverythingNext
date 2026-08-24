@@ -41,7 +41,18 @@
         BackgroundColor="#202020"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Square150x150Logo="Assets\Square150x150Logo.png" />
+      <Extensions>
+        <desktop:Extension
+          Category="windows.startupTask"
+          Executable="EverythingNextAutostart.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask
+            TaskId="EverythingNextStartup"
+            Enabled="true"
+            DisplayName="Everything Next" />
+        </desktop:Extension>
 __SERVICE_EXTENSION__
+      </Extensions>
     </Application>
   </Applications>
 
