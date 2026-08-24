@@ -14,6 +14,8 @@ const AUTOSTART_ARG: &str = "--autostart";
 const SEARCH_ARG: &str = "-s";
 #[cfg(not(debug_assertions))]
 const AUTOSTART_VALUE_NAME: &str = "Everything Next";
+#[cfg(not(debug_assertions))]
+const IS_STORE_BUILD: bool = option_env!("TAURI_STORE_BUILD").is_some();
 const TRAY_OPEN_ID: &str = "open";
 const TRAY_QUIT_ID: &str = "quit";
 
@@ -136,6 +138,10 @@ pub(crate) fn install_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()>
 
 #[cfg(not(debug_assertions))]
 pub(crate) fn ensure_autostart_registered() {
+    if IS_STORE_BUILD {
+        return;
+    }
+
     if let Err(error) = register_windows_autostart() {
         eprintln!("Everything Next autostart: {error}");
     }
