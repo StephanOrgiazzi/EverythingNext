@@ -31,6 +31,8 @@
 <p align="center">
   <a href="https://github.com/StephanOrgiazzi/EverythingNext/releases"><strong>Download for Windows</strong></a>
   ·
+  <a href="#install-with-winget"><strong>Install with WinGet</strong></a>
+  ·
   <a href="#why-everything-next">Features</a>
   ·
   <a href="#build-from-source">Build from source</a>
@@ -74,6 +76,14 @@ You can sort by name, path, type, size, or modified date; filter by common file 
 
 > [!NOTE]
 > Everything Next currently targets Windows 11 x64. The installer runs per machine, installs to `Program Files`, and requests administrator approval to configure its indexing service.
+
+## Install with WinGet
+
+The latest published version is available from the official WinGet community source:
+
+```powershell
+winget install --id StephanOrgiazzi.EverythingNext --exact
+```
 
 The bundled engine:
 

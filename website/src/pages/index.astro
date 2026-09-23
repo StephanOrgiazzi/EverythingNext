@@ -6,6 +6,7 @@ const description =
   "Find any file on Windows before you finish typing. Everything Next is a fast, open-source search app for Windows 11.";
 const repository = "https://github.com/StephanOrgiazzi/EverythingNext";
 const downloadUrl = `${repository}/releases/latest`;
+const wingetCommand = "winget install --id StephanOrgiazzi.EverythingNext --exact";
 const base = import.meta.env.BASE_URL;
 ---
 
@@ -43,6 +44,7 @@ const base = import.meta.env.BASE_URL;
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 2h9v9H2V2Zm11 0h9v9h-9V2ZM2 13h9v9H2v-9Zm11 0h9v9h-9v-9Z" /></svg>
               Download for Windows
             </a>
+            <a class="button button-secondary" href="#install-with-winget">Install with WinGet</a>
             <a class="button button-secondary" href={repository} target="_blank" rel="noreferrer">View source</a>
           </div>
 
@@ -147,6 +149,15 @@ const base = import.meta.env.BASE_URL;
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 2h9v9H2V2Zm11 0h9v9h-9V2ZM2 13h9v9H2v-9Zm11 0h9v9h-9v-9Z" /></svg>
           Download for Windows
         </a>
+      </section>
+
+      <section class="winget" id="install-with-winget" aria-labelledby="winget-title">
+        <div class="winget-copy">
+          <p class="eyebrow">WinGet</p>
+          <h2 id="winget-title">Install from the command line</h2>
+          <p>Everything Next is published in the official WinGet community source. Run one command to install the latest release.</p>
+        </div>
+        <code class="winget-command">{wingetCommand}</code>
       </section>
     </main>
 
@@ -623,6 +634,42 @@ const base = import.meta.env.BASE_URL;
     align-items: center;
     gap: 9px;
   }
+  .winget {
+    padding: 104px 0 116px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: center;
+    gap: clamp(42px, 8vw, 112px);
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 68px;
+  }
+  .winget-copy { max-width: 470px; }
+  .winget-copy h2 { margin-bottom: 18px; }
+  .winget-copy > p:not(.eyebrow) {
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  .winget-command {
+    display: block;
+    min-width: 0;
+    padding: 24px 26px;
+    overflow-x: auto;
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--control-fill);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), var(--shadow-2);
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: clamp(12px, 1.35vw, 15px);
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  :global(html[data-theme="dark"]) .winget-command {
+    background: var(--surface);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--shadow-2);
+  }
   .download-label::before {
     content: "";
     width: 3px;
@@ -652,6 +699,7 @@ const base = import.meta.env.BASE_URL;
     .feature-grid { grid-template-columns: 1fr; }
     .features { padding: 92px 0 100px; }
     .download { flex-direction: column; align-items: flex-start; }
+    .winget { grid-template-columns: 1fr; gap: 34px; padding: 86px 0 94px; }
   }
 
   @media (max-width: 520px) {
