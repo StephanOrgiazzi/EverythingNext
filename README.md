@@ -57,14 +57,9 @@ Everything Next is an open-source desktop client for [Everything](https://www.vo
 
 ## Why Everything Next
 
-| | |
-|---|---|
-| **Search at typing speed** | Queries start 55 ms after the last keystroke and use Everything's native search syntax. |
-| **One installer** | Everything 1.5.0.1418b x64 and SDK3 3.0.0.9 ship with the app. No separate Everything installation is required. |
-| **Built for large result sets** | Viewport pagination, a sliding cache, and a virtualized list keep result handling bounded. |
-| **File actions where you need them** | Open, show in Explorer, copy, rename, or move one or thousands of selected files to the Recycle Bin. |
-| **A Windows-first interface** | Details and icon views, progressive Windows Shell visuals, light and dark themes, and restored window state. |
-| **Keyboard-first control** | Navigate, sort, extend selections, open files, rename, and delete without leaving the keyboard. |
+Everything Next is extremely fast: search starts just 55 ms after your last keystroke.
+
+It pairs that speed with a clean, Windows 11-inspired interface that feels right in both light and dark mode.
 
 You can sort by name, path, type, size, or modified date; filter by common file types; exclude folders; and switch between details, small icons, medium icons, and large icons.
 
@@ -85,16 +80,6 @@ The latest published version is available from the official WinGet community sou
 winget install --id StephanOrgiazzi.EverythingNext --exact
 ```
 
-The bundled engine:
-
-- runs without a separate Everything installation;
-- stays hidden, with no engine window or notification icon;
-- stores its configuration and database in `%LOCALAPPDATA%\EverythingNext\Engine`;
-- uses the private `Everything Service (EverythingNext)` service;
-- exposes the default Everything IPC instance for compatibility with SDK2 clients.
-
-The default Everything IPC instance is exclusive. If classic Everything already owns it, Everything Next asks you to close that process instead of connecting to its database.
-
 ## PowerToys Run
 
 Everything Next works with the [EverythingPowerToys](https://github.com/lin-ycv/EverythingPowerToys) plugin.
@@ -107,10 +92,6 @@ The plugin can then:
 - open **Show more results** with `EverythingNext.exe -s "query"`.
 
 If Everything Next is already running, the existing window is restored, the query is forwarded, and the search field receives focus.
-
-## File operations you can trust
-
-Moving a large selection to the Recycle Bin uses an immutable snapshot created before confirmation and consumed exactly once. Each operation is capped at 10,000 items, which keeps memory use bounded and prevents a stale selection from changing after you approve it.
 
 ## Keyboard shortcuts
 
