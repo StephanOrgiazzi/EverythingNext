@@ -1,0 +1,16 @@
+{
+  "name": "Everything Next",
+  "short_name": "Everything Next",
+  "description": "Instant file search for Windows 11.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7f9fc",
+  "theme_color": "#f7f9fc",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
