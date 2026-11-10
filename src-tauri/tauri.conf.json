@@ -25,7 +25,8 @@
         "transparent": false,
         "backgroundColor": "#202020",
         "shadow": true,
-        "visible": false
+        "visible": false,
+        "create": false
       }
     ],
     "security": {

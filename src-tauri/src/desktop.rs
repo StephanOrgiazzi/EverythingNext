@@ -7,9 +7,10 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Runtime, State,
+    AppHandle, Manager, Runtime, State, WebviewWindow, WebviewWindowBuilder,
 };
 
+const MAIN_WINDOW_LABEL: &str = "main";
 const AUTOSTART_ARG: &str = "--autostart";
 const SEARCH_ARG: &str = "-s";
 #[cfg(not(debug_assertions))]
@@ -84,18 +85,49 @@ where
     None
 }
 
+/// Shows the main window, creating its webview first if it does not exist.
+///
+/// The webview is only created on demand and destroyed when the window is
+/// closed, so a tray-resident instance does not keep `WebView2` processes alive.
 pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(window) = app.get_webview_window("main") {
-        if let Err(error) = window.show() {
-            eprintln!("Unable to show the main window: {error}");
-        }
-        if let Err(error) = window.unminimize() {
-            eprintln!("Unable to restore the main window: {error}");
-        }
-        if let Err(error) = window.set_focus() {
-            eprintln!("Unable to focus the main window: {error}");
-        }
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        reveal_window(&window);
+        return;
     }
+    // Building a webview from a main-thread event handler deadlocks on
+    // Windows (tauri-apps/wry#583), so create it from a worker thread.
+    let app = app.clone();
+    std::thread::spawn(move || match create_main_window(&app) {
+        Ok(window) => reveal_window(&window),
+        Err(error) => eprintln!("Unable to create the main window: {error}"),
+    });
+}
+
+fn reveal_window<R: Runtime>(window: &WebviewWindow<R>) {
+    if let Err(error) = window.show() {
+        eprintln!("Unable to show the main window: {error}");
+    }
+    if let Err(error) = window.unminimize() {
+        eprintln!("Unable to restore the main window: {error}");
+    }
+    if let Err(error) = window.set_focus() {
+        eprintln!("Unable to focus the main window: {error}");
+    }
+}
+
+fn create_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == MAIN_WINDOW_LABEL)
+        .ok_or(tauri::Error::WindowNotFound)?;
+    let window = WebviewWindowBuilder::from_config(app, config)?.build()?;
+    if let Some(icon) = app.default_window_icon().cloned() {
+        window.set_icon(icon)?;
+    }
+    Ok(window)
 }
 
 pub(crate) fn install_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
@@ -125,9 +157,6 @@ pub(crate) fn install_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()>
         });
 
     if let Some(icon) = app.default_window_icon().cloned() {
-        if let Some(window) = app.get_webview_window("main") {
-            window.set_icon(icon.clone())?;
-        }
         tray = tray.icon(icon);
     }
     tray.build(app)?;

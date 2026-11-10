@@ -12,7 +12,7 @@ use search::{begin_search_generation, engine_status, search_everything, SearchSt
 use shell_commands::{
     copy_files, copy_text, get_file_visual, open_path, rename_path, reveal_path, ShellState,
 };
-use tauri::{Emitter, Manager, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent};
 use tauri_plugin_window_state::StateFlags;
 use trash::{cancel_trash_snapshot, execute_trash_snapshot, prepare_trash_selection, TrashState};
 
@@ -64,14 +64,6 @@ fn main() -> tauri::Result<()> {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                if let Err(error) = window.hide() {
-                    eprintln!("Unable to hide the main window: {error}");
-                }
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             engine_status,
             begin_search_generation,
@@ -87,5 +79,16 @@ fn main() -> tauri::Result<()> {
             execute_trash_snapshot,
             cancel_trash_snapshot,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|_app, event| {
+            // Closing the window destroys its webview; keep the tray instance
+            // running. An explicit `app.exit` (tray "Quit") carries a code.
+            if let RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                api.prevent_exit();
+            }
+        });
+    Ok(())
 }
