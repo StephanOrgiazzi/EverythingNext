@@ -1163,14 +1163,14 @@ dependencies = [
 
 [[package]]
 name = "everything-core"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "everything-engine"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "everything-core",
  "libloading 0.8.9",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "everything-next"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "everything-core",
  "everything-engine",
@@ -1196,7 +1196,7 @@ dependencies = [
 
 [[package]]
 name = "everything-next-ui"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "console_error_panic_hook",
  "everything-core",
@@ -5907,7 +5907,7 @@ dependencies = [
 
 [[package]]
 name = "windows-shell"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "base64 0.22.1",
  "clipboard-win",
